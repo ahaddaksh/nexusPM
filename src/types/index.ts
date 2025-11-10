@@ -50,7 +50,7 @@ export interface TimeEntry {
 
 export interface Meeting {
   id: string;
-  projectId: string;
+  projectId: string | null; // Optional - meetings can exist without projects
   title: string;
   notes: string;
   meetingDate: string;

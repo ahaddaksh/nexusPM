@@ -21,7 +21,8 @@ export default function Navigation() {
     { path: '/projects', label: 'Projects', icon: FolderKanban },
     { path: '/tasks', label: 'Tasks', icon: CheckSquare },
     { path: '/time-tracking', label: 'Time Tracking', icon: Clock },
-    { path: '/meeting-processor', label: 'AI Meeting Processor', icon: Sparkles },
+    { path: '/meetings', label: 'Meetings', icon: Sparkles },
+    { path: '/meeting-processor', label: 'Process Meeting', icon: Sparkles },
   ];
 
   const isActive = (path: string) => location.pathname === path;

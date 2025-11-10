@@ -341,12 +341,12 @@ export default function Tasks() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="project">Project (Optional)</Label>
-                      <Select value={taskForm.projectId} onValueChange={(value) => setTaskForm({ ...taskForm, projectId: value })}>
+                      <Select value={taskForm.projectId || "none"} onValueChange={(value) => setTaskForm({ ...taskForm, projectId: value === "none" ? "" : value })}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select a project" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">No Project</SelectItem>
+                          <SelectItem value="none">No Project</SelectItem>
                           {projects.map((project) => (
                             <SelectItem key={project.id} value={project.id}>
                               {project.name}
@@ -750,12 +750,12 @@ export default function Tasks() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-project">Project</Label>
-                  <Select value={taskForm.projectId} onValueChange={(value) => setTaskForm({ ...taskForm, projectId: value })}>
+                  <Select value={taskForm.projectId || "none"} onValueChange={(value) => setTaskForm({ ...taskForm, projectId: value === "none" ? "" : value })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a project" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No Project</SelectItem>
+                      <SelectItem value="none">No Project</SelectItem>
                       {projects.map((project) => (
                         <SelectItem key={project.id} value={project.id}>
                           {project.name}

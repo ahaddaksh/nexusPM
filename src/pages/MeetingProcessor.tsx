@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,7 @@ import { useProjects } from '@/hooks/useProjects';
 import { AISuggestion } from '@/types';
 
 export default function MeetingProcessor() {
+  const navigate = useNavigate();
   const [meetingTitle, setMeetingTitle] = useState('');
   const [meetingNotes, setMeetingNotes] = useState('');
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
@@ -118,6 +120,15 @@ export default function MeetingProcessor() {
     <div className="min-h-screen bg-gray-50">
       <Navigation />
       <div className="container mx-auto p-6 space-y-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Process Meeting Notes</h1>
+            <p className="text-gray-600">Generate actionable tasks from meeting notes using AI</p>
+          </div>
+          <Button variant="outline" onClick={() => navigate('/meetings')}>
+            View Past Meetings
+          </Button>
+        </div>
         <Card>
         <CardHeader>
           <CardTitle>Process Meeting Notes</CardTitle>
@@ -140,12 +151,12 @@ export default function MeetingProcessor() {
 
           <div className="space-y-2">
             <Label htmlFor="project">Project (Optional)</Label>
-            <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+            <Select value={selectedProjectId || "none"} onValueChange={(value) => setSelectedProjectId(value === "none" ? "" : value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a project (optional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">No Project</SelectItem>
+                <SelectItem value="none">No Project</SelectItem>
                 {projects.map((project) => (
                   <SelectItem key={project.id} value={project.id}>
                     {project.name}
@@ -251,12 +262,12 @@ export default function MeetingProcessor() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Project (Optional)</Label>
-              <Select value={selectedProjectForApproval} onValueChange={setSelectedProjectForApproval}>
+              <Select value={selectedProjectForApproval || "none"} onValueChange={(value) => setSelectedProjectForApproval(value === "none" ? "" : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a project (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No Project</SelectItem>
+                  <SelectItem value="none">No Project</SelectItem>
                   {projects.map((project) => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.name}

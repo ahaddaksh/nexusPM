@@ -14,6 +14,8 @@ import TimeTracking from './pages/TimeTracking';
 import MeetingProcessor from './pages/MeetingProcessor';
 import Tasks from './pages/Tasks';
 import TaskDetail from './pages/TaskDetail';
+import Meetings from './pages/Meetings';
+import MeetingDetail from './pages/MeetingDetail';
 
 const queryClient = new QueryClient();
 
@@ -33,6 +35,8 @@ const App = () => (
           <Route path="/meeting-processor" element={<ProtectedRoute><MeetingProcessor /></ProtectedRoute>} />
           <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
           <Route path="/tasks/:id" element={<ProtectedRoute><TaskDetail /></ProtectedRoute>} />
+          <Route path="/meetings" element={<ProtectedRoute><Meetings /></ProtectedRoute>} />
+          <Route path="/meetings/:id" element={<ProtectedRoute><MeetingDetail /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

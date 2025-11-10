@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Project, ProjectCreateData, Task, TaskCreateData, TimeEntry, MeetingProcessData, AISuggestion } from '../types';
+import { Project, ProjectCreateData, Task, TaskCreateData, TimeEntry, MeetingProcessData, AISuggestion, Meeting } from '../types';
 
 // Projects
 export const projectsService = {
@@ -134,7 +134,7 @@ export const timeTrackingService = {
       .eq('userId', user.id)
       .eq('taskId', taskId)
       .is('endTime', null)
-      .single();
+      .maybeSingle();
 
     if (existingTimer) {
       // Timer already running for this task
@@ -147,7 +147,7 @@ export const timeTrackingService = {
       .select('*')
       .eq('userId', user.id)
       .is('endTime', null)
-      .single();
+      .maybeSingle();
 
     if (otherActiveTimer) {
       // Stop the other timer and start this one
@@ -244,13 +244,61 @@ export const timeTrackingService = {
       .select('*')
       .eq('userId', user.id)
       .is('endTime', null)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-      throw error;
+    if (error) {
+      // Log but don't throw - it's okay if there's no active timer
+      console.error('Error fetching active timer:', error);
+      return null;
     }
 
     return data || null;
+  },
+};
+
+// Meetings Service
+export const meetingsService = {
+  async getMeetings(): Promise<Meeting[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const { data, error } = await supabase
+      .from('meetings')
+      .select('*')
+      .eq('createdBy', user.id)
+      .order('meetingDate', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getMeeting(id: string): Promise<Meeting | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const { data, error } = await supabase
+      .from('meetings')
+      .select('*')
+      .eq('id', id)
+      .eq('createdBy', user.id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // No rows returned
+      throw error;
+    }
+    return data;
+  },
+
+  async getMeetingSuggestions(meetingId: string): Promise<AISuggestion[]> {
+    const { data, error } = await supabase
+      .from('ai_suggestions')
+      .select('*')
+      .eq('meetingId', meetingId)
+      .order('createdAt', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
   },
 };
 
