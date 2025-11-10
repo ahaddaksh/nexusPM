@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { AISuggestion, MeetingProcessData } from '../types';
+import { AISuggestion, MeetingProcessData, TaskCreateData } from '../types';
 import { aiSuggestionsService } from '../lib/supabase-data';
 
 export const useAISuggestions = () => {
@@ -35,11 +35,11 @@ export const useAISuggestions = () => {
     }
   }, []);
 
-  const approveSuggestion = useCallback(async (suggestionId: string, modifications?: Record<string, unknown>) => {
+  const approveSuggestion = useCallback(async (suggestionId: string, modifications?: Partial<TaskCreateData>) => {
     setIsLoading(true);
     setError(null);
     try {
-      const task = await aiSuggestionsService.approveSuggestion(suggestionId, modifications as any);
+      const task = await aiSuggestionsService.approveSuggestion(suggestionId, modifications);
       setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
       return task;
     } catch (err) {

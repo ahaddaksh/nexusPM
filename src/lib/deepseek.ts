@@ -9,10 +9,12 @@ import { AISuggestion } from '../types';
 //
 // Example .env file:
 // VITE_AI_API_KEY=sk-your-api-key-here
-// VITE_AI_API_URL=https://api.deepseek.com/v1/chat/completions
+// VITE_AI_API_URL=https://api.deepseek.com/chat/completions
+//
+// Note: DeepSeek API endpoint is https://api.deepseek.com/chat/completions (no /v1/)
 
 const AI_API_KEY = import.meta.env.VITE_AI_API_KEY;
-const AI_API_URL = import.meta.env.VITE_AI_API_URL || 'https://api.deepseek.com/v1/chat/completions';
+const AI_API_URL = import.meta.env.VITE_AI_API_URL || 'https://api.deepseek.com/chat/completions';
 
 export const deepseekService = {
   async processMeetingNotes(notes: string, projectId?: string): Promise<AISuggestion[]> {
@@ -30,38 +32,71 @@ export const deepseekService = {
             messages: [
               {
                 role: 'system',
-                content: 'You are a helpful assistant that extracts actionable tasks from meeting notes. Return a JSON array of task suggestions. Each suggestion should have: originalText (excerpt from notes), suggestedTask (task title), and confidenceScore (0-1).',
+                content: 'You are a helpful assistant that extracts actionable tasks from meeting notes. You must return a valid JSON object with a "suggestions" array. Each suggestion must have: originalText (excerpt from notes), suggestedTask (task title), and confidenceScore (a number between 0 and 1).',
               },
               {
                 role: 'user',
-                content: `Extract actionable tasks from these meeting notes:\n\n${notes}\n\nReturn a JSON array with at least 3 task suggestions.`,
+                content: `Extract actionable tasks from these meeting notes:\n\n${notes}\n\nReturn a JSON object with a "suggestions" array containing at least 3 task suggestions. Format: {"suggestions": [{"originalText": "...", "suggestedTask": "...", "confidenceScore": 0.8}, ...]}`,
               },
             ],
             temperature: 0.7,
+            response_format: { type: 'json_object' },
           }),
         });
 
         if (!response.ok) {
-          throw new Error(`AI API error: ${response.statusText}`);
+          const errorText = await response.text();
+          let errorMessage = `AI API error: ${response.status} ${response.statusText}`;
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.error?.message || errorMessage;
+          } catch {
+            errorMessage = errorText || errorMessage;
+          }
+          throw new Error(errorMessage);
         }
 
         const data = await response.json();
-        const content = data.choices[0]?.message?.content || '[]';
+        const content = data.choices[0]?.message?.content || '{}';
         
         // Parse the JSON response
-        let suggestions: Array<{ originalText: string; suggestedTask: string; confidenceScore: number }>;
+        let parsedContent: any;
         try {
-          suggestions = JSON.parse(content);
-        } catch {
-          // Fallback if response is not valid JSON
-          suggestions = [
-            {
-              originalText: notes.substring(0, 100),
-              suggestedTask: 'Review meeting notes and create action items',
-              confidenceScore: 0.8,
-            },
-          ];
+          parsedContent = JSON.parse(content);
+        } catch (parseError) {
+          console.error('Failed to parse AI response:', content);
+          throw new Error('AI returned invalid JSON. Please try again.');
         }
+
+        // Handle both array and object with array property
+        let suggestions: Array<{ originalText: string; suggestedTask: string; confidenceScore: number }>;
+        if (Array.isArray(parsedContent)) {
+          suggestions = parsedContent;
+        } else if (parsedContent.tasks && Array.isArray(parsedContent.tasks)) {
+          suggestions = parsedContent.tasks;
+        } else if (parsedContent.suggestions && Array.isArray(parsedContent.suggestions)) {
+          suggestions = parsedContent.suggestions;
+        } else {
+          // Try to find any array in the response
+          const arrayKey = Object.keys(parsedContent).find(key => Array.isArray(parsedContent[key]));
+          if (arrayKey) {
+            suggestions = parsedContent[arrayKey];
+          } else {
+            throw new Error('AI response does not contain a valid suggestions array');
+          }
+        }
+
+        // Validate suggestions structure
+        if (!Array.isArray(suggestions) || suggestions.length === 0) {
+          throw new Error('No valid task suggestions found in AI response');
+        }
+
+        // Ensure all suggestions have required fields
+        suggestions = suggestions.map(s => ({
+          originalText: s.originalText || notes.substring(0, 100),
+          suggestedTask: s.suggestedTask || 'Review meeting notes',
+          confidenceScore: typeof s.confidenceScore === 'number' ? Math.max(0, Math.min(1, s.confidenceScore)) : 0.8,
+        }));
 
         return suggestions.map((s, index) => ({
           id: `ai-${Date.now()}-${index}`,
@@ -77,7 +112,8 @@ export const deepseekService = {
         }));
       } catch (error) {
         console.error('AI API error:', error);
-        // Fall through to mock implementation
+        // Re-throw the error so the caller can handle it
+        throw error;
       }
     }
 

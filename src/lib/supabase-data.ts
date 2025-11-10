@@ -275,11 +275,11 @@ export const aiSuggestionsService = {
     const { deepseekService } = await import('./deepseek');
     const suggestions = await deepseekService.processMeetingNotes(data.notes, data.projectId);
 
-    // Save meeting
+    // Save meeting (projectId is optional)
     const { data: meeting, error: meetingError } = await supabase
       .from('meetings')
       .insert({
-        projectId: data.projectId,
+        projectId: data.projectId || null,
         title: data.title,
         notes: data.notes,
         meetingDate: data.meetingDate,
@@ -319,24 +319,25 @@ export const aiSuggestionsService = {
 
     if (fetchError || !suggestion) throw new Error('Suggestion not found');
 
-    // Get project ID from meeting
-    let projectId = '';
+    // Get project ID from meeting (optional - can be null)
+    let projectId: string | undefined = undefined;
     if (suggestion.meetingId) {
       const { data: meeting } = await supabase
         .from('meetings')
         .select('projectId')
         .eq('id', suggestion.meetingId)
         .single();
-      projectId = meeting?.projectId || '';
+      projectId = meeting?.projectId || undefined;
     }
 
-    if (!projectId) {
-      throw new Error('Could not determine project for this suggestion');
-    }
+    // Use projectId from modifications if provided, otherwise from meeting
+    const finalProjectId = modifications?.projectId !== undefined 
+      ? modifications.projectId 
+      : projectId;
 
-    // Create task from suggestion
+    // Create task from suggestion (projectId is optional)
     const taskData: TaskCreateData = {
-      projectId,
+      projectId: finalProjectId,
       title: modifications?.title || suggestion.suggestedTask,
       description: modifications?.description || suggestion.originalText,
       priority: modifications?.priority || 'medium',

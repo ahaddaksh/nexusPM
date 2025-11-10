@@ -15,6 +15,8 @@ export default function MeetingProcessor() {
   const [meetingNotes, setMeetingNotes] = useState('');
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [approvingSuggestionId, setApprovingSuggestionId] = useState<string | null>(null);
+  const [selectedProjectForApproval, setSelectedProjectForApproval] = useState<string>('');
   const { suggestions, isLoading, error, processMeeting, fetchSuggestions, approveSuggestion, rejectSuggestion } = useAISuggestions();
   const { projects, fetchProjects } = useProjects();
   const { toast } = useToast();
@@ -25,8 +27,12 @@ export default function MeetingProcessor() {
   }, [fetchProjects, fetchSuggestions]);
 
   const handleProcessMeeting = async () => {
-    if (!meetingNotes.trim() || !meetingTitle.trim() || !selectedProjectId) {
-      alert('Please enter meeting title, select a project, and enter meeting notes');
+    if (!meetingNotes.trim() || !meetingTitle.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter meeting title and meeting notes',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -34,21 +40,42 @@ export default function MeetingProcessor() {
       await processMeeting({
         title: meetingTitle,
         notes: meetingNotes,
-        projectId: selectedProjectId,
+        projectId: selectedProjectId || undefined,
         meetingDate: meetingDate,
+      });
+      toast({
+        title: 'Success',
+        description: 'Meeting processed successfully. Review the AI suggestions below.',
       });
     } catch (err) {
       console.error('Failed to process meeting:', err);
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to process meeting. Please check your API configuration.',
+        variant: 'destructive',
+      });
     }
   };
 
   const handleApproveSuggestion = async (suggestion: AISuggestion) => {
+    // Show project selection dialog
+    setApprovingSuggestionId(suggestion.id);
+    setSelectedProjectForApproval('');
+  };
+
+  const confirmApproveSuggestion = async () => {
+    if (!approvingSuggestionId) return;
+
     try {
-      await approveSuggestion(suggestion.id);
+      await approveSuggestion(approvingSuggestionId, {
+        projectId: selectedProjectForApproval || undefined,
+      });
       toast({
         title: 'Success',
         description: 'Suggestion approved and task created',
       });
+      setApprovingSuggestionId(null);
+      setSelectedProjectForApproval('');
     } catch (error) {
       toast({
         title: 'Error',
@@ -102,12 +129,13 @@ export default function MeetingProcessor() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="project">Project</Label>
+            <Label htmlFor="project">Project (Optional)</Label>
             <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
               <SelectTrigger>
-                <SelectValue placeholder="Select a project" />
+                <SelectValue placeholder="Select a project (optional)" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="">No Project</SelectItem>
                 {projects.map((project) => (
                   <SelectItem key={project.id} value={project.id}>
                     {project.name}
@@ -115,6 +143,9 @@ export default function MeetingProcessor() {
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              You can assign tasks to projects when approving suggestions
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -194,6 +225,50 @@ export default function MeetingProcessor() {
                 </CardContent>
               </Card>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Project Selection Dialog for Approval */}
+      {approvingSuggestionId && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardHeader>
+            <CardTitle>Assign Task to Project</CardTitle>
+            <CardDescription>
+              Select a project for this task, or leave empty to create without a project
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Project (Optional)</Label>
+              <Select value={selectedProjectForApproval} onValueChange={setSelectedProjectForApproval}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a project (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No Project</SelectItem>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setApprovingSuggestionId(null);
+                  setSelectedProjectForApproval('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={confirmApproveSuggestion}>
+                Create Task
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}

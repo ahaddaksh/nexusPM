@@ -106,7 +106,7 @@ export interface TaskCreateData {
 }
 
 export interface MeetingProcessData {
-  projectId: string;
+  projectId?: string; // Optional - meetings can exist without projects
   title: string;
   notes: string;
   meetingDate: string;
