@@ -62,7 +62,16 @@ export const useAuth = () => {
     setIsLoading(true);
     try {
       const response = await authService.register(data);
-      setUser(response.user);
+      // Supabase requires email confirmation by default which means the
+      // sign up response might not include an active session/token.
+      // Only mark the user as authenticated when we receive a session
+      // token so other parts of the app (like ProtectedRoute) don't
+      // immediately assume the user is logged in.
+      if (response.token) {
+        setUser(response.user);
+      } else {
+        setUser(null);
+      }
       return response;
     } finally {
       setIsLoading(false);
