@@ -4,11 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useToast } from '@/components/ui/use-toast';
 import { useProjects } from '@/hooks/useProjects';
 import { Plus, Search, Calendar, Users } from 'lucide-react';
 
 export default function Projects() {
-  const { projects, fetchProjects, createProject, isLoading } = useProjects();
+  const { projects, fetchProjects, createProject, isLoading, error } = useProjects();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [newProject, setNewProject] = useState({
     name: '',
@@ -45,9 +47,27 @@ export default function Projects() {
       setIsDialogOpen(false);
       // Refresh projects list
       await fetchProjects();
+      toast({
+        title: 'Success',
+        description: 'Project created successfully',
+      });
     } catch (error) {
       console.error('Failed to create project:', error);
-      alert(error instanceof Error ? error.message : 'Failed to create project');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create project';
+      
+      // Check if it's a database error
+      let userMessage = errorMessage;
+      if (errorMessage.includes('relation') || errorMessage.includes('does not exist')) {
+        userMessage = 'Database tables not found. Please run the SQL migration in Supabase. See SETUP_GUIDE.md for instructions.';
+      } else if (errorMessage.includes('permission denied') || errorMessage.includes('RLS')) {
+        userMessage = 'Permission denied. Please check your Row Level Security policies in Supabase.';
+      }
+      
+      toast({
+        title: 'Error',
+        description: userMessage,
+        variant: 'destructive',
+      });
     }
   };
 

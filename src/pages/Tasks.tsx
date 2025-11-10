@@ -18,8 +18,8 @@ import { ArrowLeft, Plus } from 'lucide-react';
 export default function Tasks() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { tasks, fetchTasks, createTask, updateTaskStatus, isLoading } = useTasks();
-  const { projects, fetchProjects } = useProjects();
+  const { tasks, fetchTasks, createTask, updateTaskStatus, isLoading, error: tasksError } = useTasks();
+  const { projects, fetchProjects, isLoading: projectsLoading } = useProjects();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newTask, setNewTask] = useState({
@@ -30,9 +30,21 @@ export default function Tasks() {
   });
 
   useEffect(() => {
-    fetchTasks();
-    fetchProjects();
-  }, [fetchTasks, fetchProjects]);
+    const loadData = async () => {
+      try {
+        await fetchTasks();
+        await fetchProjects();
+      } catch (error) {
+        console.error('Error loading data:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load tasks. Please check your database connection.',
+          variant: 'destructive',
+        });
+      }
+    };
+    loadData();
+  }, [fetchTasks, fetchProjects, toast]);
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,8 +221,30 @@ export default function Tasks() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tasks.map((task) => {
+        {tasksError && (
+          <Card className="mb-6 border-destructive">
+            <CardContent className="pt-6">
+              <div className="text-destructive">
+                <p className="font-semibold">Error loading tasks:</p>
+                <p className="text-sm">{tasksError}</p>
+                <p className="text-sm mt-2">
+                  Make sure you've run the database migration in Supabase. See SETUP_GUIDE.md for instructions.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {isLoading && (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading tasks...</p>
+          </div>
+        )}
+
+        {!isLoading && !tasksError && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {tasks.map((task) => {
             const project = projects.find(p => p.id === task.projectId);
             return (
               <Card key={task.id}>
@@ -270,9 +304,10 @@ export default function Tasks() {
               </Card>
             );
           })}
-        </div>
+          </div>
+        )}
 
-        {tasks.length === 0 && !isLoading && (
+        {!isLoading && !tasksError && tasks.length === 0 && (
           <div className="text-center py-12">
             <p className="text-muted-foreground">No tasks yet. Create your first task!</p>
           </div>
