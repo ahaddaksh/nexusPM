@@ -35,21 +35,29 @@ export default function Register() {
     setIsLoading(true);
 
     try {
-      await register({
+      const response = await register({
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
         password: formData.password,
       });
-      toast({
-        title: 'Success',
-        description: 'Account created successfully!',
-      });
-      navigate('/dashboard');
+      if (response.token) {
+        toast({
+          title: 'Success',
+          description: 'Account created successfully!',
+        });
+        navigate('/dashboard');
+      } else {
+        toast({
+          title: 'Almost there!',
+          description: 'Check your email to confirm your account before signing in.',
+        });
+        navigate('/login');
+      }
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to create account',
+        description: error instanceof Error ? error.message : 'Failed to create account',
         variant: 'destructive',
       });
     } finally {
