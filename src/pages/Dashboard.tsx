@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useProjects } from '@/hooks/useProjects';
@@ -8,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Plus, Clock, CheckCircle, AlertCircle, Calendar } from 'lucide-react';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { projects, fetchProjects } = useProjects();
   const { tasks, fetchTasks } = useTasks();
@@ -118,7 +120,11 @@ export default function Dashboard() {
                     <h4 className="font-medium">{project.name}</h4>
                     <p className="text-sm text-muted-foreground">{project.description}</p>
                   </div>
-                  <Button variant="outline" size="sm">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => navigate(`/projects/${project.id}`)}
+                  >
                     View
                   </Button>
                 </div>
@@ -144,8 +150,12 @@ export default function Dashboard() {
                       {task.status} • {task.priority}
                     </p>
                   </div>
-                  <Button variant="outline" size="sm">
-                    Start
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => navigate(`/projects/${task.projectId}`)}
+                  >
+                    View
                   </Button>
                 </div>
               ))}
@@ -165,15 +175,15 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-4">
-                <Button>
+                <Button onClick={() => navigate('/projects')}>
                   <Plus className="h-4 w-4 mr-2" />
                   New Project
                 </Button>
-                <Button variant="outline">
+                <Button variant="outline" onClick={() => navigate('/projects')}>
                   <Plus className="h-4 w-4 mr-2" />
                   New Task
                 </Button>
-                <Button variant="outline">
+                <Button variant="outline" onClick={() => navigate('/time-tracking')}>
                   <Clock className="h-4 w-4 mr-2" />
                   View Time Entries
                 </Button>

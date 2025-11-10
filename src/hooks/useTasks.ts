@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Task, TaskCreateData } from '../types';
-import { apiClient } from '../lib/api';
+import { tasksService } from '../lib/supabase-data';
 
 export const useTasks = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -11,7 +11,7 @@ export const useTasks = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await apiClient.getTasks(projectId);
+      const data = await tasksService.getTasks(projectId);
       setTasks(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch tasks');
@@ -24,7 +24,7 @@ export const useTasks = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const newTask = await apiClient.createTask(data);
+      const newTask = await tasksService.createTask(data);
       setTasks(prev => [...prev, newTask]);
       return newTask;
     } catch (err) {
@@ -39,7 +39,7 @@ export const useTasks = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const updatedTask = await apiClient.updateTaskStatus(taskId, status);
+      const updatedTask = await tasksService.updateTaskStatus(taskId, status);
       setTasks(prev => prev.map(task => 
         task.id === taskId ? updatedTask : task
       ));

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { AISuggestion, MeetingProcessData } from '../types';
-import { apiClient } from '../lib/api';
+import { aiSuggestionsService } from '../lib/supabase-data';
 
 export const useAISuggestions = () => {
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
@@ -11,7 +11,7 @@ export const useAISuggestions = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await apiClient.getSuggestions();
+      const data = await aiSuggestionsService.getSuggestions();
       setSuggestions(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch suggestions');
@@ -24,7 +24,7 @@ export const useAISuggestions = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const newSuggestions = await apiClient.processMeeting(data);
+      const newSuggestions = await aiSuggestionsService.processMeeting(data);
       setSuggestions(prev => [...prev, ...newSuggestions]);
       return newSuggestions;
     } catch (err) {
@@ -39,7 +39,7 @@ export const useAISuggestions = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const task = await apiClient.approveSuggestion(suggestionId, modifications);
+      const task = await aiSuggestionsService.approveSuggestion(suggestionId, modifications as any);
       setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
       return task;
     } catch (err) {
@@ -54,7 +54,7 @@ export const useAISuggestions = () => {
     setIsLoading(true);
     setError(null);
     try {
-      await apiClient.rejectSuggestion(suggestionId, reason);
+      await aiSuggestionsService.rejectSuggestion(suggestionId, reason);
       setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reject suggestion');

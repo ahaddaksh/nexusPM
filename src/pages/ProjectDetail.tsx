@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,13 +8,19 @@ import { Badge } from '@/components/ui/badge';
 import { useTasks } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
 import { useAuth } from '@/hooks/useAuth';
+import { useTimeTracking } from '@/hooks/useTimeTracking';
+import { useToast } from '@/components/ui/use-toast';
 import { Task, Project } from '@/types';
+import { ArrowLeft, Play, Clock } from 'lucide-react';
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { tasks, isLoading: tasksLoading, createTask, updateTaskStatus, fetchTasks } = useTasks();
   const { projects, fetchProjects } = useProjects();
+  const { startTimer, activeTimer, fetchTimeEntries } = useTimeTracking();
+  const { toast } = useToast();
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDescription, setNewTaskDescription] = useState('');
   const [projectTasks, setProjectTasks] = useState<Task[]>([]);
@@ -23,7 +29,8 @@ export default function ProjectDetail() {
   useEffect(() => {
     fetchProjects();
     fetchTasks();
-  }, [fetchProjects, fetchTasks]);
+    fetchTimeEntries();
+  }, [fetchProjects, fetchTasks, fetchTimeEntries]);
 
   useEffect(() => {
     if (id && projects.length > 0) {
@@ -54,8 +61,33 @@ export default function ProjectDetail() {
       });
       setNewTaskTitle('');
       setNewTaskDescription('');
+      toast({
+        title: 'Success',
+        description: 'Task created successfully',
+      });
     } catch (error) {
-      console.error('Failed to create task:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to create task',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleStartTimer = async (taskId: string) => {
+    try {
+      await startTimer(taskId);
+      await fetchTimeEntries();
+      toast({
+        title: 'Success',
+        description: 'Timer started successfully',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to start timer',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -88,6 +120,15 @@ export default function ProjectDetail() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      <Button
+        variant="ghost"
+        onClick={() => navigate('/projects')}
+        className="mb-4"
+      >
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Back to Projects
+      </Button>
+
       <Card>
         <CardHeader>
           <CardTitle>{currentProject.name}</CardTitle>
@@ -147,6 +188,23 @@ export default function ProjectDetail() {
                       </Badge>
                     </div>
                     <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleStartTimer(task.id)}
+                        disabled={!!activeTimer && activeTimer.taskId !== task.id}
+                        title={activeTimer && activeTimer.taskId !== task.id ? 'Stop current timer first' : 'Start timer'}
+                      >
+                        <Play className="h-3 w-3 mr-1" />
+                        {activeTimer?.taskId === task.id ? (
+                          <>
+                            <Clock className="h-3 w-3 mr-1" />
+                            Running
+                          </>
+                        ) : (
+                          'Start'
+                        )}
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"

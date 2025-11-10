@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/components/ui/use-toast';
 import { useAISuggestions } from '@/hooks/useAISuggestions';
 import { useProjects } from '@/hooks/useProjects';
 import { AISuggestion } from '@/types';
@@ -13,8 +14,9 @@ export default function MeetingProcessor() {
   const [meetingNotes, setMeetingNotes] = useState('');
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
-  const { suggestions, isLoading, error, processMeeting, fetchSuggestions } = useAISuggestions();
+  const { suggestions, isLoading, error, processMeeting, fetchSuggestions, approveSuggestion, rejectSuggestion } = useAISuggestions();
   const { projects, fetchProjects } = useProjects();
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchProjects();
@@ -39,14 +41,39 @@ export default function MeetingProcessor() {
     }
   };
 
-  const handleApproveSuggestion = (suggestion: AISuggestion) => {
-    // This would be implemented with the actual approval logic
-    console.log('Approving suggestion:', suggestion);
+  const handleApproveSuggestion = async (suggestion: AISuggestion) => {
+    try {
+      await approveSuggestion(suggestion.id);
+      toast({
+        title: 'Success',
+        description: 'Suggestion approved and task created',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to approve suggestion',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleRejectSuggestion = (suggestion: AISuggestion) => {
-    // This would be implemented with the actual rejection logic
-    console.log('Rejecting suggestion:', suggestion);
+  const handleRejectSuggestion = async (suggestion: AISuggestion) => {
+    const reason = prompt('Please provide a reason for rejection:');
+    if (!reason) return;
+
+    try {
+      await rejectSuggestion(suggestion.id, reason);
+      toast({
+        title: 'Success',
+        description: 'Suggestion rejected',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to reject suggestion',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (

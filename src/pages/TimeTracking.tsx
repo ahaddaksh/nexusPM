@@ -1,16 +1,31 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useTimeTracking } from '@/hooks/useTimeTracking';
 import { useTasks } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
-import { Clock, Play, Square, Calendar, BarChart3 } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import { Clock, Play, Square, Calendar, BarChart3, Plus } from 'lucide-react';
 
 export default function TimeTracking() {
-  const { timeEntries, fetchTimeEntries, activeTimer, stopTimer } = useTimeTracking();
+  const { timeEntries, fetchTimeEntries, activeTimer, stopTimer, createTimeEntry } = useTimeTracking();
   const { tasks, fetchTasks } = useTasks();
   const { projects, fetchProjects } = useProjects();
+  const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [timeSheetForm, setTimeSheetForm] = useState({
+    taskId: '',
+    startTime: new Date().toISOString().slice(0, 16),
+    endTime: new Date().toISOString().slice(0, 16),
+    description: '',
+    billable: false,
+  });
 
   useEffect(() => {
     fetchTimeEntries();
@@ -51,9 +66,77 @@ export default function TimeTracking() {
     if (activeTimer) {
       try {
         await stopTimer(activeTimer.id);
+        await fetchTimeEntries();
+        toast({
+          title: 'Success',
+          description: 'Timer stopped successfully',
+        });
       } catch (error) {
-        console.error('Failed to stop timer:', error);
+        toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Failed to stop timer',
+          variant: 'destructive',
+        });
       }
+    }
+  };
+
+  const handleSubmitTimeSheet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!timeSheetForm.taskId) {
+      toast({
+        title: 'Error',
+        description: 'Please select a task',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const start = new Date(timeSheetForm.startTime);
+    const end = new Date(timeSheetForm.endTime);
+    
+    if (end <= start) {
+      toast({
+        title: 'Error',
+        description: 'End time must be after start time',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const durationMinutes = Math.floor((end.getTime() - start.getTime()) / 1000 / 60);
+
+    try {
+      await createTimeEntry({
+        taskId: timeSheetForm.taskId,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        durationMinutes,
+        description: timeSheetForm.description,
+        billable: timeSheetForm.billable,
+      });
+      
+      await fetchTimeEntries();
+      setIsDialogOpen(false);
+      setTimeSheetForm({
+        taskId: '',
+        startTime: new Date().toISOString().slice(0, 16),
+        endTime: new Date().toISOString().slice(0, 16),
+        description: '',
+        billable: false,
+      });
+      
+      toast({
+        title: 'Success',
+        description: 'Time entry added successfully',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to create time entry',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -109,15 +192,103 @@ export default function TimeTracking() {
           </Card>
         </div>
 
-        {/* Date Filter */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium mb-2">Select Date</label>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-full p-2 border rounded-md"
-          />
+        {/* Date Filter and Add Time Sheet */}
+        <div className="mb-6 flex items-end gap-4">
+          <div className="flex-1">
+            <Label htmlFor="date-filter" className="block text-sm font-medium mb-2">Select Date</Label>
+            <Input
+              id="date-filter"
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+            />
+          </div>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Time Sheet
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Add Time Sheet Entry</DialogTitle>
+                <CardDescription>Manually add a time entry for a task</CardDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmitTimeSheet} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="task">Task</Label>
+                  <Select value={timeSheetForm.taskId} onValueChange={(value) => setTimeSheetForm({ ...timeSheetForm, taskId: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a task" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tasks.map((task) => {
+                        const project = projects.find(p => p.id === task.projectId);
+                        return (
+                          <SelectItem key={task.id} value={task.id}>
+                            {task.title} - {project?.name || 'Unknown Project'}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="startTime">Start Time</Label>
+                    <Input
+                      id="startTime"
+                      type="datetime-local"
+                      value={timeSheetForm.startTime}
+                      onChange={(e) => setTimeSheetForm({ ...timeSheetForm, startTime: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="endTime">End Time</Label>
+                    <Input
+                      id="endTime"
+                      type="datetime-local"
+                      value={timeSheetForm.endTime}
+                      onChange={(e) => setTimeSheetForm({ ...timeSheetForm, endTime: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="What did you work on?"
+                    value={timeSheetForm.description}
+                    onChange={(e) => setTimeSheetForm({ ...timeSheetForm, description: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="billable"
+                    checked={timeSheetForm.billable}
+                    onChange={(e) => setTimeSheetForm({ ...timeSheetForm, billable: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor="billable" className="cursor-pointer">Billable</Label>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">Add Time Entry</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Time Entries List */}

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Project, ProjectCreateData } from '../types';
-import { apiClient } from '../lib/api';
+import { projectsService } from '../lib/supabase-data';
 
 export const useProjects = () => {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -11,7 +11,7 @@ export const useProjects = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await apiClient.getProjects();
+      const data = await projectsService.getProjects();
       setProjects(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch projects');
@@ -24,7 +24,7 @@ export const useProjects = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const newProject = await apiClient.createProject(data);
+      const newProject = await projectsService.createProject(data);
       setProjects(prev => [...prev, newProject]);
       return newProject;
     } catch (err) {
@@ -39,7 +39,7 @@ export const useProjects = () => {
     setIsLoading(true);
     setError(null);
     try {
-      return await apiClient.getProject(id);
+      return await projectsService.getProject(id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch project');
       throw err;
