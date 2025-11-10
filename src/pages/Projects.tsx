@@ -43,8 +43,11 @@ export default function Projects() {
         endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       });
       setIsDialogOpen(false);
+      // Refresh projects list
+      await fetchProjects();
     } catch (error) {
       console.error('Failed to create project:', error);
+      alert(error instanceof Error ? error.message : 'Failed to create project');
     }
   };
 

@@ -72,7 +72,7 @@ export const tasksService = {
     const { data: task, error } = await supabase
       .from('tasks')
       .insert({
-        projectId: data.projectId,
+        projectId: data.projectId || null, // Allow null for tasks without projects
         title: data.title,
         description: data.description,
         status: 'todo',

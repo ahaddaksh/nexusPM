@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,15 +11,18 @@ import { useTimeTracking } from '@/hooks/useTimeTracking';
 import { useTasks } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
 import { useToast } from '@/components/ui/use-toast';
-import { Clock, Play, Square, Calendar, BarChart3, Plus } from 'lucide-react';
+import { Clock, Play, Square, Calendar, BarChart3, Plus, ArrowLeft } from 'lucide-react';
 
 export default function TimeTracking() {
-  const { timeEntries, fetchTimeEntries, activeTimer, stopTimer, createTimeEntry } = useTimeTracking();
-  const { tasks, fetchTasks } = useTasks();
+  const navigate = useNavigate();
+  const { timeEntries, fetchTimeEntries, activeTimer, stopTimer, createTimeEntry, startTimer } = useTimeTracking();
+  const { tasks, fetchTasks, isLoading: tasksLoading } = useTasks();
   const { projects, fetchProjects } = useProjects();
   const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isStartTimerDialogOpen, setIsStartTimerDialogOpen] = useState(false);
+  const [selectedTaskForTimer, setSelectedTaskForTimer] = useState('');
   const [timeSheetForm, setTimeSheetForm] = useState({
     taskId: '',
     startTime: new Date().toISOString().slice(0, 16),
@@ -132,9 +136,38 @@ export default function TimeTracking() {
         description: 'Time entry added successfully',
       });
     } catch (error) {
+      console.error('Error creating time entry:', error);
       toast({
         title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to create time entry',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleStartTimer = async () => {
+    if (!selectedTaskForTimer) {
+      toast({
+        title: 'Error',
+        description: 'Please select a task',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await startTimer(selectedTaskForTimer);
+      await fetchTimeEntries();
+      setIsStartTimerDialogOpen(false);
+      setSelectedTaskForTimer('');
+      toast({
+        title: 'Success',
+        description: 'Timer started successfully',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to start timer',
         variant: 'destructive',
       });
     }
@@ -144,6 +177,14 @@ export default function TimeTracking() {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/dashboard')}
+            className="mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </Button>
           <h1 className="text-3xl font-bold text-gray-900">Time Tracking</h1>
           <p className="text-gray-600">Track and manage your time entries</p>
         </div>
@@ -192,7 +233,7 @@ export default function TimeTracking() {
           </Card>
         </div>
 
-        {/* Date Filter and Add Time Sheet */}
+        {/* Date Filter and Action Buttons */}
         <div className="mb-6 flex items-end gap-4">
           <div className="flex-1">
             <Label htmlFor="date-filter" className="block text-sm font-medium mb-2">Select Date</Label>
@@ -203,6 +244,54 @@ export default function TimeTracking() {
               onChange={(e) => setSelectedDate(e.target.value)}
             />
           </div>
+          <Dialog open={isStartTimerDialogOpen} onOpenChange={setIsStartTimerDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" disabled={!!activeTimer}>
+                <Play className="h-4 w-4 mr-2" />
+                Start Timer
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Start Timer</DialogTitle>
+                <CardDescription>Select a task to start tracking time</CardDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="timer-task">Task</Label>
+                  <Select value={selectedTaskForTimer} onValueChange={setSelectedTaskForTimer}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a task" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tasksLoading ? (
+                        <SelectItem value="loading" disabled>Loading tasks...</SelectItem>
+                      ) : tasks.length === 0 ? (
+                        <SelectItem value="empty" disabled>No tasks available. Create a task first.</SelectItem>
+                      ) : (
+                        tasks.map((task) => {
+                          const project = projects.find(p => p.id === task.projectId);
+                          return (
+                            <SelectItem key={task.id} value={task.id}>
+                              {task.title} {project ? `- ${project.name}` : '(No Project)'}
+                            </SelectItem>
+                          );
+                        })
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={() => setIsStartTimerDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleStartTimer} disabled={!selectedTaskForTimer}>
+                    Start Timer
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -223,14 +312,20 @@ export default function TimeTracking() {
                       <SelectValue placeholder="Select a task" />
                     </SelectTrigger>
                     <SelectContent>
-                      {tasks.map((task) => {
-                        const project = projects.find(p => p.id === task.projectId);
-                        return (
-                          <SelectItem key={task.id} value={task.id}>
-                            {task.title} - {project?.name || 'Unknown Project'}
-                          </SelectItem>
-                        );
-                      })}
+                      {tasksLoading ? (
+                        <SelectItem value="loading" disabled>Loading tasks...</SelectItem>
+                      ) : tasks.length === 0 ? (
+                        <SelectItem value="empty" disabled>No tasks available. Create a task first.</SelectItem>
+                      ) : (
+                        tasks.map((task) => {
+                          const project = projects.find(p => p.id === task.projectId);
+                          return (
+                            <SelectItem key={task.id} value={task.id}>
+                              {task.title} {project ? `- ${project.name}` : '(No Project)'}
+                            </SelectItem>
+                          );
+                        })
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

@@ -96,7 +96,7 @@ export interface ProjectCreateData {
 }
 
 export interface TaskCreateData {
-  projectId: string;
+  projectId?: string; // Optional - tasks can exist without projects
   title: string;
   description: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';

@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS projects (
 -- Tasks table
 CREATE TABLE IF NOT EXISTS tasks (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  "projectId" UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  "projectId" UUID REFERENCES projects(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'review', 'completed')),
@@ -103,8 +103,10 @@ CREATE POLICY "Users can delete their own projects" ON projects
   FOR DELETE USING (auth.uid() = "createdBy");
 
 -- RLS Policies for Tasks
-CREATE POLICY "Users can view tasks in their projects" ON tasks
+CREATE POLICY "Users can view their tasks" ON tasks
   FOR SELECT USING (
+    tasks."createdBy" = auth.uid() OR
+    tasks."assignedTo" = auth.uid() OR
     EXISTS (
       SELECT 1 FROM projects 
       WHERE projects.id = tasks."projectId" 
@@ -112,31 +114,43 @@ CREATE POLICY "Users can view tasks in their projects" ON tasks
     )
   );
 
-CREATE POLICY "Users can create tasks in their projects" ON tasks
+CREATE POLICY "Users can create tasks" ON tasks
   FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM projects 
-      WHERE projects.id = tasks."projectId" 
-      AND projects."createdBy" = auth.uid()
+    auth.uid() = "createdBy" AND
+    (
+      tasks."projectId" IS NULL OR
+      EXISTS (
+        SELECT 1 FROM projects 
+        WHERE projects.id = tasks."projectId" 
+        AND projects."createdBy" = auth.uid()
+      )
     )
-    AND auth.uid() = "createdBy"
   );
 
-CREATE POLICY "Users can update tasks in their projects" ON tasks
+CREATE POLICY "Users can update their tasks" ON tasks
   FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM projects 
-      WHERE projects.id = tasks."projectId" 
-      AND projects."createdBy" = auth.uid()
+    tasks."createdBy" = auth.uid() OR
+    tasks."assignedTo" = auth.uid() OR
+    (
+      tasks."projectId" IS NOT NULL AND
+      EXISTS (
+        SELECT 1 FROM projects 
+        WHERE projects.id = tasks."projectId" 
+        AND projects."createdBy" = auth.uid()
+      )
     )
   );
 
-CREATE POLICY "Users can delete tasks in their projects" ON tasks
+CREATE POLICY "Users can delete their tasks" ON tasks
   FOR DELETE USING (
-    EXISTS (
-      SELECT 1 FROM projects 
-      WHERE projects.id = tasks."projectId" 
-      AND projects."createdBy" = auth.uid()
+    tasks."createdBy" = auth.uid() OR
+    (
+      tasks."projectId" IS NOT NULL AND
+      EXISTS (
+        SELECT 1 FROM projects 
+        WHERE projects.id = tasks."projectId" 
+        AND projects."createdBy" = auth.uid()
+      )
     )
   );
 

@@ -1,14 +1,84 @@
 import { AISuggestion } from '../types';
 
-// Mock implementation for Deepseek API integration
-// In a real implementation, this would make actual API calls to Deepseek
+// AI Service Configuration
+// To use a real AI API, set VITE_AI_API_KEY and VITE_AI_API_URL in your .env file
+// Example for Deepseek:
+// VITE_AI_API_KEY=sk-your-api-key-here
+// VITE_AI_API_URL=https://api.deepseek.com/v1/chat/completions
+
+const AI_API_KEY = import.meta.env.VITE_AI_API_KEY;
+const AI_API_URL = import.meta.env.VITE_AI_API_URL || 'https://api.deepseek.com/v1/chat/completions';
 
 export const deepseekService = {
   async processMeetingNotes(notes: string, projectId?: string): Promise<AISuggestion[]> {
-    // Simulate API call delay
+    // If API key is configured, use real API
+    if (AI_API_KEY && AI_API_URL) {
+      try {
+        const response = await fetch(AI_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${AI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: 'deepseek-chat',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a helpful assistant that extracts actionable tasks from meeting notes. Return a JSON array of task suggestions. Each suggestion should have: originalText (excerpt from notes), suggestedTask (task title), and confidenceScore (0-1).',
+              },
+              {
+                role: 'user',
+                content: `Extract actionable tasks from these meeting notes:\n\n${notes}\n\nReturn a JSON array with at least 3 task suggestions.`,
+              },
+            ],
+            temperature: 0.7,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`AI API error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const content = data.choices[0]?.message?.content || '[]';
+        
+        // Parse the JSON response
+        let suggestions: Array<{ originalText: string; suggestedTask: string; confidenceScore: number }>;
+        try {
+          suggestions = JSON.parse(content);
+        } catch {
+          // Fallback if response is not valid JSON
+          suggestions = [
+            {
+              originalText: notes.substring(0, 100),
+              suggestedTask: 'Review meeting notes and create action items',
+              confidenceScore: 0.8,
+            },
+          ];
+        }
+
+        return suggestions.map((s, index) => ({
+          id: `ai-${Date.now()}-${index}`,
+          meetingId: 'temp-meeting-id',
+          originalText: s.originalText,
+          suggestedTask: s.suggestedTask,
+          confidenceScore: s.confidenceScore,
+          status: 'pending' as const,
+          reviewedBy: null,
+          reviewedAt: null,
+          rejectionReason: null,
+          createdAt: new Date().toISOString(),
+        }));
+      } catch (error) {
+        console.error('AI API error:', error);
+        // Fall through to mock implementation
+      }
+    }
+
+    // Mock implementation (used when no API key is configured)
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Mock response - matching the canonical AISuggestion type
     const mockSuggestions: AISuggestion[] = [
       {
         id: '1',
