@@ -27,7 +27,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     const completedTasks = tasks.filter(task => task.status === 'completed').length;
-    const totalTime = timeEntries.reduce((total, entry) => total + (entry.duration || 0), 0);
+    const totalTime = timeEntries.reduce((total, entry) => total + (entry.durationMinutes || 0), 0);
     
     setStats({
       totalProjects: projects.length,
@@ -37,10 +37,10 @@ export default function Dashboard() {
     });
   }, [projects, tasks, timeEntries]);
 
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours}h ${minutes}m`;
+  const formatTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins}m`;
   };
 
   return (

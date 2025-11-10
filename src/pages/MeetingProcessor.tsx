@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAISuggestions } from '@/hooks/useAISuggestions';
@@ -10,21 +9,30 @@ import { useProjects } from '@/hooks/useProjects';
 import { AISuggestion } from '@/types';
 
 export default function MeetingProcessor() {
+  const [meetingTitle, setMeetingTitle] = useState('');
   const [meetingNotes, setMeetingNotes] = useState('');
+  const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
-  const { suggestions, isLoading, error, processMeeting } = useAISuggestions();
-  const { projects } = useProjects();
+  const { suggestions, isLoading, error, processMeeting, fetchSuggestions } = useAISuggestions();
+  const { projects, fetchProjects } = useProjects();
+
+  useEffect(() => {
+    fetchProjects();
+    fetchSuggestions();
+  }, [fetchProjects, fetchSuggestions]);
 
   const handleProcessMeeting = async () => {
-    if (!meetingNotes.trim()) {
-      alert('Please enter meeting notes');
+    if (!meetingNotes.trim() || !meetingTitle.trim() || !selectedProjectId) {
+      alert('Please enter meeting title, select a project, and enter meeting notes');
       return;
     }
 
     try {
       await processMeeting({
+        title: meetingTitle,
         notes: meetingNotes,
-        projectId: selectedProjectId || undefined
+        projectId: selectedProjectId,
+        meetingDate: meetingDate,
       });
     } catch (err) {
       console.error('Failed to process meeting:', err);
@@ -52,13 +60,24 @@ export default function MeetingProcessor() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="project">Project (Optional)</Label>
+            <Label htmlFor="title">Meeting Title</Label>
+            <input
+              id="title"
+              type="text"
+              placeholder="Enter meeting title"
+              value={meetingTitle}
+              onChange={(e) => setMeetingTitle(e.target.value)}
+              className="w-full p-2 border rounded-md"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="project">Project</Label>
             <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a project" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">No project</SelectItem>
                 {projects.map((project) => (
                   <SelectItem key={project.id} value={project.id}>
                     {project.name}
@@ -66,6 +85,17 @@ export default function MeetingProcessor() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="date">Meeting Date</Label>
+            <input
+              id="date"
+              type="date"
+              value={meetingDate}
+              onChange={(e) => setMeetingDate(e.target.value)}
+              className="w-full p-2 border rounded-md"
+            />
           </div>
 
           <div className="space-y-2">
@@ -107,15 +137,12 @@ export default function MeetingProcessor() {
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between">
                     <div className="space-y-2 flex-1">
-                      <h4 className="font-semibold">{suggestion.content}</h4>
+                      <h4 className="font-semibold">{suggestion.suggestedTask}</h4>
                       <p className="text-sm text-muted-foreground">
-                        {suggestion.description}
+                        {suggestion.originalText}
                       </p>
                       <div className="flex items-center space-x-4 text-sm">
-                        <span className="capitalize">{suggestion.priority} priority</span>
-                        {suggestion.estimatedHours && (
-                          <span>Estimated: {suggestion.estimatedHours}h</span>
-                        )}
+                        <span>Confidence: {(suggestion.confidenceScore * 100).toFixed(0)}%</span>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">

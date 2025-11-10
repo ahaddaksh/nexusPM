@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 import { authService } from '../lib/auth';
 import { User } from '../types';
 
@@ -7,9 +8,38 @@ export const useAuth = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const currentUser = authService.getUser();
-    setUser(currentUser);
-    setIsLoading(false);
+    // Check active session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email!,
+          firstName: session.user.user_metadata?.firstName || '',
+          lastName: session.user.user_metadata?.lastName || '',
+          createdAt: session.user.created_at,
+        });
+      }
+      setIsLoading(false);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email!,
+          firstName: session.user.user_metadata?.firstName || '',
+          lastName: session.user.user_metadata?.lastName || '',
+          createdAt: session.user.created_at,
+        });
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -39,8 +69,8 @@ export const useAuth = () => {
     }
   };
 
-  const logout = () => {
-    authService.logout();
+  const logout = async () => {
+    await authService.logout();
     setUser(null);
   };
 
@@ -50,6 +80,6 @@ export const useAuth = () => {
     login,
     register,
     logout,
-    isAuthenticated: authService.isAuthenticated(),
+    isAuthenticated: !!user,
   };
 };

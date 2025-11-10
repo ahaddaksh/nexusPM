@@ -8,36 +8,42 @@ export const deepseekService = {
     // Simulate API call delay
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Mock response - in a real implementation, this would be the actual API response
+    // Mock response - matching the canonical AISuggestion type
     const mockSuggestions: AISuggestion[] = [
       {
         id: '1',
-        type: 'task',
-        content: 'Create project plan document',
-        description: 'Based on the meeting discussion, create a comprehensive project plan document outlining milestones, timelines, and resource allocation.',
-        priority: 'high',
-        estimatedHours: 4,
-        projectId: projectId || null,
+        meetingId: 'mock-meeting-1',
+        originalText: notes.substring(0, 100),
+        suggestedTask: 'Create project plan document based on meeting discussion',
+        confidenceScore: 0.85,
+        status: 'pending',
+        reviewedBy: null,
+        reviewedAt: null,
+        rejectionReason: null,
         createdAt: new Date().toISOString(),
       },
       {
         id: '2',
-        type: 'task',
-        content: 'Schedule follow-up meeting',
-        description: 'Schedule a follow-up meeting to review progress and address any outstanding questions from the current discussion.',
-        priority: 'medium',
-        estimatedHours: 1,
-        projectId: projectId || null,
+        meetingId: 'mock-meeting-1',
+        originalText: notes.substring(100, 200),
+        suggestedTask: 'Schedule follow-up meeting to review progress',
+        confidenceScore: 0.78,
+        status: 'pending',
+        reviewedBy: null,
+        reviewedAt: null,
+        rejectionReason: null,
         createdAt: new Date().toISOString(),
       },
       {
         id: '3',
-        type: 'action',
-        content: 'Send meeting summary email',
-        description: 'Send a summary email to all participants with key decisions, action items, and next steps.',
-        priority: 'high',
-        estimatedHours: 0.5,
-        projectId: projectId || null,
+        meetingId: 'mock-meeting-1',
+        originalText: notes.substring(200, 300),
+        suggestedTask: 'Send meeting summary email to all participants',
+        confidenceScore: 0.92,
+        status: 'pending',
+        reviewedBy: null,
+        reviewedAt: null,
+        rejectionReason: null,
         createdAt: new Date().toISOString(),
       }
     ];

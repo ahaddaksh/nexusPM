@@ -5,16 +5,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useProjects } from '@/hooks/useProjects';
-import { useAuth } from '@/hooks/useAuth';
 import { Plus, Search, Calendar, Users } from 'lucide-react';
 
 export default function Projects() {
-  const { user } = useAuth();
   const { projects, fetchProjects, createProject, isLoading } = useProjects();
   const [searchTerm, setSearchTerm] = useState('');
   const [newProject, setNewProject] = useState({
     name: '',
     description: '',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -31,10 +31,17 @@ export default function Projects() {
     e.preventDefault();
     try {
       await createProject({
-        ...newProject,
-        ownerId: user?.id || '',
+        name: newProject.name,
+        description: newProject.description,
+        startDate: newProject.startDate,
+        endDate: newProject.endDate,
       });
-      setNewProject({ name: '', description: '' });
+      setNewProject({
+        name: '',
+        description: '',
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      });
       setIsDialogOpen(false);
     } catch (error) {
       console.error('Failed to create project:', error);
@@ -76,6 +83,24 @@ export default function Projects() {
                     value={newProject.description}
                     onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
                     placeholder="Enter project description"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Start Date</label>
+                  <Input
+                    type="date"
+                    value={newProject.startDate}
+                    onChange={(e) => setNewProject({ ...newProject, startDate: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">End Date</label>
+                  <Input
+                    type="date"
+                    value={newProject.endDate}
+                    onChange={(e) => setNewProject({ ...newProject, endDate: e.target.value })}
+                    required
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>

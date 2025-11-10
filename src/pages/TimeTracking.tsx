@@ -7,14 +7,16 @@ import { useProjects } from '@/hooks/useProjects';
 import { Clock, Play, Square, Calendar, BarChart3 } from 'lucide-react';
 
 export default function TimeTracking() {
-  const { timeEntries, fetchTimeEntries, activeTimer, startTimer, stopTimer } = useTimeTracking();
-  const { tasks } = useTasks();
-  const { projects } = useProjects();
+  const { timeEntries, fetchTimeEntries, activeTimer, stopTimer } = useTimeTracking();
+  const { tasks, fetchTasks } = useTasks();
+  const { projects, fetchProjects } = useProjects();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     fetchTimeEntries();
-  }, [fetchTimeEntries]);
+    fetchTasks();
+    fetchProjects();
+  }, [fetchTimeEntries, fetchTasks, fetchProjects]);
 
   const filteredEntries = timeEntries.filter(entry => {
     const entryDate = new Date(entry.startTime).toISOString().split('T')[0];
@@ -33,17 +35,27 @@ export default function TimeTracking() {
     return project ? project.name : 'Unknown Project';
   };
 
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours}h ${minutes}m`;
+  const formatDuration = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins}m`;
   };
 
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString();
   };
 
-  const totalTimeToday = filteredEntries.reduce((total, entry) => total + (entry.duration || 0), 0);
+  const totalTimeToday = filteredEntries.reduce((total, entry) => total + (entry.durationMinutes || 0), 0);
+
+  const handleStopTimer = async () => {
+    if (activeTimer) {
+      try {
+        await stopTimer(activeTimer.id);
+      } catch (error) {
+        console.error('Failed to stop timer:', error);
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -128,7 +140,7 @@ export default function TimeTracking() {
                   </div>
                   <div className="text-right">
                     <div className="font-mono text-lg">
-                      {formatDuration(entry.duration || 0)}
+                      {formatDuration(entry.durationMinutes || 0)}
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {entry.description || 'No description'}
@@ -162,7 +174,7 @@ export default function TimeTracking() {
                     {getProjectName(activeTimer.taskId)} • Started at {formatTime(activeTimer.startTime)}
                   </p>
                 </div>
-                <Button variant="destructive" onClick={stopTimer}>
+                <Button variant="destructive" onClick={handleStopTimer}>
                   <Square className="h-4 w-4 mr-2" />
                   Stop Timer
                 </Button>

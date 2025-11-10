@@ -7,16 +7,23 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useTasks } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
-import { Task, TaskStatus, Project } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
+import { Task, Project } from '@/types';
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
-  const { tasks, isLoading: tasksLoading, createTask, updateTaskStatus } = useTasks();
-  const { projects } = useProjects();
+  const { user } = useAuth();
+  const { tasks, isLoading: tasksLoading, createTask, updateTaskStatus, fetchTasks } = useTasks();
+  const { projects, fetchProjects } = useProjects();
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDescription, setNewTaskDescription] = useState('');
   const [projectTasks, setProjectTasks] = useState<Task[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
+
+  useEffect(() => {
+    fetchProjects();
+    fetchTasks();
+  }, [fetchProjects, fetchTasks]);
 
   useEffect(() => {
     if (id && projects.length > 0) {
@@ -33,14 +40,17 @@ export default function ProjectDetail() {
   }, [id, tasks]);
 
   const handleCreateTask = async () => {
-    if (!newTaskTitle.trim() || !id) return;
+    if (!newTaskTitle.trim() || !id || !user) return;
 
     try {
       await createTask({
         title: newTaskTitle,
         description: newTaskDescription,
         projectId: id,
-        status: 'todo'
+        priority: 'medium',
+        estimatedHours: 1,
+        assignedTo: user.id,
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       });
       setNewTaskTitle('');
       setNewTaskDescription('');
@@ -49,7 +59,7 @@ export default function ProjectDetail() {
     }
   };
 
-  const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
+  const handleStatusChange = async (taskId: string, newStatus: Task['status']) => {
     try {
       await updateTaskStatus(taskId, newStatus);
     } catch (error) {
@@ -57,14 +67,16 @@ export default function ProjectDetail() {
     }
   };
 
-  const getStatusBadgeVariant = (status: TaskStatus) => {
+  const getStatusBadgeVariant = (status: Task['status']) => {
     switch (status) {
       case 'todo':
         return 'secondary';
       case 'in_progress':
         return 'default';
-      case 'done':
-        return 'success';
+      case 'completed':
+        return 'default';
+      case 'review':
+        return 'outline';
       default:
         return 'secondary';
     }
@@ -154,10 +166,10 @@ export default function ProjectDetail() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleStatusChange(task.id, 'done')}
-                        disabled={task.status === 'done'}
+                        onClick={() => handleStatusChange(task.id, 'completed')}
+                        disabled={task.status === 'completed'}
                       >
-                        Done
+                        Completed
                       </Button>
                     </div>
                   </div>

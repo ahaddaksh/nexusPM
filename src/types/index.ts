@@ -3,10 +3,10 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'admin' | 'manager' | 'member';
-  isActive: boolean;
+  role?: 'admin' | 'manager' | 'member';
+  isActive?: boolean;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 export interface Project {

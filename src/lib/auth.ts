@@ -1,44 +1,53 @@
-import { apiClient } from './api';
+import { supabase } from './supabase';
 import { User, AuthResponse } from '../types';
 
 class AuthService {
-  private tokenKey = 'auth_token';
   private userKey = 'user_data';
 
-  getToken(): string | null {
-    return localStorage.getItem(this.tokenKey);
-  }
+  async getUser(): Promise<User | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
 
-  getUser(): User | null {
-    const userStr = localStorage.getItem(this.userKey);
-    return userStr ? JSON.parse(userStr) : null;
-  }
-
-  setAuthData(token: string, user: User): void {
-    localStorage.setItem(this.tokenKey, token);
-    localStorage.setItem(this.userKey, JSON.stringify(user));
-    apiClient.setToken(token);
-  }
-
-  clearAuthData(): void {
-    localStorage.removeItem(this.tokenKey);
-    localStorage.removeItem(this.userKey);
-    apiClient.setToken('');
+    return {
+      id: user.id,
+      email: user.email!,
+      firstName: user.user_metadata?.firstName || '',
+      lastName: user.user_metadata?.lastName || '',
+      createdAt: user.created_at,
+    };
   }
 
   isAuthenticated(): boolean {
-    return !!this.getToken();
+    // This will be checked async in useAuth hook
+    return true;
   }
 
   async login(email: string, password: string): Promise<AuthResponse> {
-    try {
-      const response = await apiClient.login({ email, password });
-      this.setAuthData(response.token, response.user);
-      return response;
-    } catch (error) {
-      this.clearAuthData();
-      throw error;
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      throw new Error(error.message);
     }
+
+    if (!data.user) {
+      throw new Error('Login failed');
+    }
+
+    const user: User = {
+      id: data.user.id,
+      email: data.user.email!,
+      firstName: data.user.user_metadata?.firstName || '',
+      lastName: data.user.user_metadata?.lastName || '',
+      createdAt: data.user.created_at,
+    };
+
+    return {
+      token: data.session?.access_token || '',
+      user,
+    };
   }
 
   async register(data: {
@@ -47,18 +56,42 @@ class AuthService {
     firstName: string;
     lastName: string;
   }): Promise<AuthResponse> {
-    try {
-      const response = await apiClient.register(data);
-      this.setAuthData(response.token, response.user);
-      return response;
-    } catch (error) {
-      this.clearAuthData();
-      throw error;
+    const { data: authData, error } = await supabase.auth.signUp({
+      email: data.email,
+      password: data.password,
+      options: {
+        data: {
+          firstName: data.firstName,
+          lastName: data.lastName,
+        },
+      },
+    });
+
+    if (error) {
+      throw new Error(error.message);
     }
+
+    if (!authData.user) {
+      throw new Error('Registration failed');
+    }
+
+    const user: User = {
+      id: authData.user.id,
+      email: authData.user.email!,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      createdAt: authData.user.created_at,
+    };
+
+    return {
+      token: authData.session?.access_token || '',
+      user,
+    };
   }
 
-  logout(): void {
-    this.clearAuthData();
+  async logout(): Promise<void> {
+    await supabase.auth.signOut();
+    localStorage.removeItem(this.userKey);
     window.location.href = '/login';
   }
 }
