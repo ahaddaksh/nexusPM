@@ -14,8 +14,10 @@ import { useMeetings } from '@/hooks/useMeetings';
 import { useProjects } from '@/hooks/useProjects';
 import { useTasks } from '@/hooks/useTasks';
 import { useAISuggestions } from '@/hooks/useAISuggestions';
+import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/ui/use-toast';
-import { Meeting, AISuggestion, Task, TaskCreateData } from '@/types';
+import { usersService } from '@/lib/users-service';
+import { Meeting, AISuggestion, Task, TaskCreateData, User } from '@/types';
 import { 
   Calendar, 
   Clock, 
@@ -40,12 +42,14 @@ export default function MeetingDetail() {
   const { projects, fetchProjects } = useProjects();
   const { tasks, fetchTasks } = useTasks();
   const { reprocessMeeting, approveSuggestion, rejectSuggestion, isLoading: isReprocessing } = useAISuggestions();
+  const { user: currentUser } = useAuth();
   const { toast } = useToast();
 
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
   const [tasksFromMeeting, setTasksFromMeeting] = useState<Task[]>([]);
   const [isReprocessingMeeting, setIsReprocessingMeeting] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   
   // Dialog states
   const [approvingSuggestion, setApprovingSuggestion] = useState<AISuggestion | null>(null);
@@ -58,11 +62,15 @@ export default function MeetingDetail() {
     description: string;
     projectId: string;
     priority: 'low' | 'medium' | 'high' | 'urgent';
+    assignedTo: string;
+    dueDate: string;
   }>({
     title: '',
     description: '',
     projectId: '',
     priority: 'medium',
+    assignedTo: '',
+    dueDate: '',
   });
   
   // Rejection reason
@@ -73,8 +81,22 @@ export default function MeetingDetail() {
       loadMeetingData();
       fetchProjects();
       fetchTasks();
+      loadUsers();
     }
   }, [id]);
+
+  const loadUsers = async () => {
+    try {
+      const users = await usersService.getUsers();
+      setAvailableUsers(users);
+    } catch (error) {
+      console.error('Failed to load users:', error);
+      // Fallback to current user if available
+      if (currentUser) {
+        setAvailableUsers([currentUser]);
+      }
+    }
+  };
 
   const loadMeetingData = async () => {
     if (!id) return;
@@ -162,11 +184,16 @@ export default function MeetingDetail() {
 
   const handleApproveClick = (suggestion: AISuggestion) => {
     setApprovingSuggestion(suggestion);
+    const defaultDueDate = new Date();
+    defaultDueDate.setDate(defaultDueDate.getDate() + 7); // Default to 7 days from now
+    
     setApprovalForm({
       title: suggestion.suggestedTask,
       description: suggestion.originalText,
       projectId: meeting?.projectId || '',
       priority: 'medium',
+      assignedTo: currentUser?.id || '',
+      dueDate: defaultDueDate.toISOString().split('T')[0],
     });
   };
 
@@ -177,11 +204,16 @@ export default function MeetingDetail() {
 
   const handleEditClick = (suggestion: AISuggestion) => {
     setEditingSuggestion(suggestion);
+    const defaultDueDate = new Date();
+    defaultDueDate.setDate(defaultDueDate.getDate() + 7); // Default to 7 days from now
+    
     setApprovalForm({
       title: suggestion.suggestedTask,
       description: suggestion.originalText,
       projectId: meeting?.projectId || '',
       priority: 'medium',
+      assignedTo: currentUser?.id || '',
+      dueDate: defaultDueDate.toISOString().split('T')[0],
     });
   };
 
@@ -194,6 +226,8 @@ export default function MeetingDetail() {
         description: approvalForm.description,
         projectId: approvalForm.projectId || undefined,
         priority: approvalForm.priority,
+        assignedTo: approvalForm.assignedTo || currentUser?.id || '',
+        dueDate: approvalForm.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       };
 
       await approveSuggestion(approvingSuggestion.id, modifications);
@@ -210,7 +244,7 @@ export default function MeetingDetail() {
       });
 
       setApprovingSuggestion(null);
-      setApprovalForm({ title: '', description: '', projectId: '', priority: 'medium' });
+      setApprovalForm({ title: '', description: '', projectId: '', priority: 'medium', assignedTo: '', dueDate: '' });
     } catch (error) {
       toast({
         title: 'Error',
@@ -264,6 +298,8 @@ export default function MeetingDetail() {
         description: approvalForm.description,
         projectId: approvalForm.projectId || undefined,
         priority: approvalForm.priority,
+        assignedTo: approvalForm.assignedTo || currentUser?.id || '',
+        dueDate: approvalForm.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       };
 
       await approveSuggestion(editingSuggestion.id, modifications);
@@ -280,7 +316,7 @@ export default function MeetingDetail() {
       });
 
       setEditingSuggestion(null);
-      setApprovalForm({ title: '', description: '', projectId: '', priority: 'medium' });
+      setApprovalForm({ title: '', description: '', projectId: '', priority: 'medium', assignedTo: '', dueDate: '' });
     } catch (error) {
       toast({
         title: 'Error',
@@ -649,6 +685,41 @@ export default function MeetingDetail() {
                   </Select>
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="approve-assignee">Assignee</Label>
+                  <Select
+                    value={approvalForm.assignedTo || 'none'}
+                    onValueChange={(value) => setApprovalForm({ ...approvalForm, assignedTo: value === 'none' ? '' : value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select assignee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableUsers.length > 0 ? (
+                        availableUsers.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.firstName} {u.lastName} ({u.email})
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value={currentUser?.id || ''}>
+                          {currentUser?.firstName} {currentUser?.lastName} (You)
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="approve-due-date">Due Date</Label>
+                  <Input
+                    id="approve-due-date"
+                    type="date"
+                    value={approvalForm.dueDate}
+                    onChange={(e) => setApprovalForm({ ...approvalForm, dueDate: e.target.value })}
+                  />
+                </div>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setApprovingSuggestion(null)}>
@@ -729,6 +800,41 @@ export default function MeetingDetail() {
                       <SelectItem value="urgent">Urgent</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-assignee">Assignee</Label>
+                  <Select
+                    value={approvalForm.assignedTo || 'none'}
+                    onValueChange={(value) => setApprovalForm({ ...approvalForm, assignedTo: value === 'none' ? '' : value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select assignee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableUsers.length > 0 ? (
+                        availableUsers.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.firstName} {u.lastName} ({u.email})
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value={currentUser?.id || ''}>
+                          {currentUser?.firstName} {currentUser?.lastName} (You)
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-due-date">Due Date</Label>
+                  <Input
+                    id="edit-due-date"
+                    type="date"
+                    value={approvalForm.dueDate}
+                    onChange={(e) => setApprovalForm({ ...approvalForm, dueDate: e.target.value })}
+                  />
                 </div>
               </div>
             </div>

@@ -30,10 +30,22 @@ export interface Task {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   estimatedHours: number;
   assignedTo: string;
+  reviewerId?: string | null; // Reviewer when task is in review status
   createdBy: string;
   createdAt: string;
   updatedAt: string;
   dueDate: string;
+}
+
+export interface TaskAttachment {
+  id: string;
+  taskId: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number; // in bytes
+  mimeType: string;
+  uploadedBy: string;
+  createdAt: string;
 }
 
 export interface TimeEntry {
@@ -110,4 +122,64 @@ export interface MeetingProcessData {
   title: string;
   notes: string;
   meetingDate: string;
+}
+
+export interface Department {
+  id: string;
+  name: string;
+  description?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  description?: string;
+  departmentId?: string;
+  teamLeadId?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AllowedDomain {
+  id: string;
+  domain: string;
+  isActive: boolean;
+  autoAssignTeamId?: string;
+  autoAssignDepartmentId?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  category?: string;
+  description?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Extended User interface with team/department
+export interface ExtendedUser extends User {
+  teamId?: string;
+  departmentId?: string;
+  team?: Team;
+  department?: Department;
+}
+
+// Extended Project with tags
+export interface ProjectWithTags extends Project {
+  tags?: Tag[];
+}
+
+// Extended Task with tags
+export interface TaskWithTags extends Task {
+  tags?: Tag[];
 }

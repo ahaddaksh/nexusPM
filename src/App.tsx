@@ -16,6 +16,7 @@ import Tasks from './pages/Tasks';
 import TaskDetail from './pages/TaskDetail';
 import Meetings from './pages/Meetings';
 import MeetingDetail from './pages/MeetingDetail';
+import Admin from './pages/Admin';
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
           <Route path="/tasks/:id" element={<ProtectedRoute><TaskDetail /></ProtectedRoute>} />
           <Route path="/meetings" element={<ProtectedRoute><Meetings /></ProtectedRoute>} />
           <Route path="/meetings/:id" element={<ProtectedRoute><MeetingDetail /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

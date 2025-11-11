@@ -18,7 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/ui/use-toast';
 import { usersService } from '@/lib/users-service';
 import { supabase } from '@/lib/supabase';
-import { Task, User } from '@/types';
+import { Task, User, TaskAttachment } from '@/types';
 import { 
   Calendar, 
   Clock, 
@@ -32,7 +32,11 @@ import {
   CheckCircle2,
   Circle,
   PlayCircle,
-  Plus
+  Plus,
+  Paperclip,
+  Upload,
+  File,
+  Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -64,6 +68,11 @@ export default function TaskDetail() {
     description: '',
     billable: false,
   });
+  const [isReviewerDialogOpen, setIsReviewerDialogOpen] = useState(false);
+  const [selectedReviewer, setSelectedReviewer] = useState<string>('');
+  const [pendingStatusChange, setPendingStatusChange] = useState<Task['status'] | null>(null);
+  const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -71,6 +80,7 @@ export default function TaskDetail() {
       fetchProjects();
       fetchTimeEntries();
       loadUsers();
+      loadAttachments();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -159,9 +169,33 @@ export default function TaskDetail() {
     }
   };
 
+  const loadAttachments = async () => {
+    if (!id) return;
+    try {
+      const { data, error } = await supabase
+        .from('task_attachments')
+        .select('*')
+        .eq('taskId', id)
+        .order('createdAt', { ascending: false });
+
+      if (error) throw error;
+      setAttachments(data || []);
+    } catch (error) {
+      console.error('Failed to load attachments:', error);
+    }
+  };
+
   const handleStatusChange = async (newStatus: Task['status']) => {
     if (!task) return;
 
+    // If changing to review, show reviewer selection dialog
+    if (newStatus === 'review') {
+      setPendingStatusChange(newStatus);
+      setIsReviewerDialogOpen(true);
+      return;
+    }
+
+    // For other status changes, proceed directly
     try {
       await updateTaskStatus(task.id, newStatus);
       await loadTask();
@@ -176,6 +210,149 @@ export default function TaskDetail() {
         variant: 'destructive',
       });
     }
+  };
+
+  const confirmReviewStatusChange = async () => {
+    if (!task || !selectedReviewer || !pendingStatusChange) return;
+
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          status: pendingStatusChange,
+          reviewerId: selectedReviewer,
+          updatedAt: new Date().toISOString(),
+        })
+        .eq('id', task.id);
+
+      if (error) throw error;
+
+      await loadTask();
+      setIsReviewerDialogOpen(false);
+      setSelectedReviewer('');
+      setPendingStatusChange(null);
+      
+      toast({
+        title: 'Success',
+        description: 'Task marked for review and reviewer assigned',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to update status',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!task || !event.target.files || event.target.files.length === 0) return;
+
+    const file = event.target.files[0];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+
+    if (file.size > maxSize) {
+      toast({
+        title: 'Error',
+        description: 'File size must be less than 10MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      // Upload file to Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${task.id}/${Date.now()}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('task-attachments')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('task-attachments')
+        .getPublicUrl(fileName);
+
+      // Save attachment record
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { error: insertError } = await supabase
+        .from('task_attachments')
+        .insert({
+          taskId: task.id,
+          fileName: file.name,
+          fileUrl: urlData.publicUrl,
+          fileSize: file.size,
+          mimeType: file.type,
+          uploadedBy: user.id,
+        });
+
+      if (insertError) throw insertError;
+
+      await loadAttachments();
+      toast({
+        title: 'Success',
+        description: 'File uploaded successfully',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to upload file',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      event.target.value = '';
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!task) return;
+
+    try {
+      // Get attachment to delete file from storage
+      const attachment = attachments.find(a => a.id === attachmentId);
+      if (attachment) {
+        const fileName = attachment.fileUrl.split('/').pop();
+        if (fileName) {
+          await supabase.storage
+            .from('task-attachments')
+            .remove([`${task.id}/${fileName}`]);
+        }
+      }
+
+      // Delete attachment record
+      const { error } = await supabase
+        .from('task_attachments')
+        .delete()
+        .eq('id', attachmentId);
+
+      if (error) throw error;
+
+      await loadAttachments();
+      toast({
+        title: 'Success',
+        description: 'Attachment deleted',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to delete attachment',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
   const handleTimerToggle = async () => {
@@ -304,6 +481,7 @@ export default function TaskDetail() {
   const isTaskTimerActive = activeTimer?.taskId === task?.id;
   const project = projects.find(p => p.id === task?.projectId);
   const assignedUser = availableUsers.find(u => u.id === task?.assignedTo) || currentUser;
+  const reviewerUser = task?.reviewerId ? availableUsers.find(u => u.id === task.reviewerId) : null;
 
   if (isLoading) {
     return (
@@ -450,6 +628,83 @@ export default function TaskDetail() {
               </CardContent>
             </Card>
 
+            {/* Attachments */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Attachments</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    {attachments.length} file{attachments.length !== 1 ? 's' : ''} attached
+                  </p>
+                  <label>
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                      disabled={isUploading}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
+                      disabled={isUploading}
+                    >
+                      <span>
+                        {isUploading ? (
+                          <>
+                            <Upload className="h-3 w-3 mr-1 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-3 w-3 mr-1" />
+                            Upload File
+                          </>
+                        )}
+                      </span>
+                    </Button>
+                  </label>
+                </div>
+                {attachments.length > 0 && (
+                  <div className="space-y-2">
+                    {attachments.map((attachment) => (
+                      <div
+                        key={attachment.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <File className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <a
+                              href={attachment.fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-medium hover:underline truncate block"
+                            >
+                              {attachment.fileName}
+                            </a>
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(attachment.fileSize)} • {format(new Date(attachment.createdAt), 'MMM dd, yyyy')}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteAttachment(attachment.id)}
+                          className="flex-shrink-0"
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Time Tracking */}
             <Card>
               <CardHeader>
@@ -569,6 +824,17 @@ export default function TaskDetail() {
                     </div>
                   )}
                 </div>
+                {task.status === 'review' && task.reviewerId && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Reviewer</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <AlertCircle className="h-4 w-4 text-orange-600" />
+                      <span className="text-orange-600 font-medium">
+                        {reviewerUser ? `${reviewerUser.firstName} ${reviewerUser.lastName}` : 'Reviewer assigned'}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 <Separator />
 
@@ -737,6 +1003,65 @@ export default function TaskDetail() {
                 Add Time Entry
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reviewer Selection Dialog */}
+      <Dialog open={isReviewerDialogOpen} onOpenChange={setIsReviewerDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Reviewer</DialogTitle>
+            <DialogDescription>
+              Choose who should review this task. The task will be assigned to the reviewer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="reviewer">Reviewer</Label>
+              <Select
+                value={selectedReviewer}
+                onValueChange={setSelectedReviewer}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a reviewer" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableUsers.length > 0 ? (
+                    availableUsers.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.firstName} {user.lastName} ({user.email})
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value={currentUser?.id || ''}>
+                      {currentUser?.firstName} {currentUser?.lastName} (You)
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            {task && (
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm font-medium mb-1">Task:</p>
+                <p className="text-sm text-muted-foreground">{task.title}</p>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => {
+              setIsReviewerDialogOpen(false);
+              setSelectedReviewer('');
+              setPendingStatusChange(null);
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={confirmReviewStatusChange}
+              disabled={!selectedReviewer}
+            >
+              Assign Reviewer
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
