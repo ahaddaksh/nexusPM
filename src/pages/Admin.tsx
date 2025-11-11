@@ -432,17 +432,26 @@ function UsersManagement() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setEditingUser(user);
-                          setFormData({
-                            email: user.email,
-                            firstName: user.firstName,
-                            lastName: user.lastName,
-                            role: user.role || 'member',
-                            isActive: user.isActive ?? true,
-                            teamId: (user as any).teamId || '',
-                            departmentId: (user as any).departmentId || '',
-                          });
-                          setIsDialogOpen(true);
+                          try {
+                            setEditingUser(user);
+                            setFormData({
+                              email: user.email,
+                              firstName: user.firstName,
+                              lastName: user.lastName,
+                              role: user.role || 'member',
+                              isActive: user.isActive ?? true,
+                              teamId: (user as any).teamId || '',
+                              departmentId: (user as any).departmentId || '',
+                            });
+                            setIsDialogOpen(true);
+                          } catch (error) {
+                            console.error('Error opening edit dialog:', error);
+                            toast({
+                              title: 'Error',
+                              description: 'Failed to open edit dialog',
+                              variant: 'destructive',
+                            });
+                          }
                         }}
                       >
                         <Edit className="h-4 w-4" />
@@ -511,14 +520,14 @@ function UsersManagement() {
                 <div className="space-y-2">
                   <Label htmlFor="team">Team</Label>
                   <Select
-                    value={formData.teamId}
-                    onValueChange={(value) => setFormData({ ...formData, teamId: value })}
+                    value={formData.teamId || 'none'}
+                    onValueChange={(value) => setFormData({ ...formData, teamId: value === 'none' ? '' : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select team" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No Team</SelectItem>
+                      <SelectItem value="none">No Team</SelectItem>
                       {teams.map((team) => (
                         <SelectItem key={team.id} value={team.id}>
                           {team.name}
@@ -531,14 +540,14 @@ function UsersManagement() {
               <div className="space-y-2">
                 <Label htmlFor="department">Department</Label>
                 <Select
-                  value={formData.departmentId}
-                  onValueChange={(value) => setFormData({ ...formData, departmentId: value })}
+                  value={formData.departmentId || 'none'}
+                  onValueChange={(value) => setFormData({ ...formData, departmentId: value === 'none' ? '' : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No Department</SelectItem>
+                    <SelectItem value="none">No Department</SelectItem>
                     {departments.map((dept) => (
                       <SelectItem key={dept.id} value={dept.id}>
                         {dept.name}
@@ -744,14 +753,23 @@ function TeamsManagement() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setEditingTeam(team);
-                          setFormData({
-                            name: team.name,
-                            description: team.description || '',
-                            departmentId: team.departmentId || '',
-                            teamLeadId: team.teamLeadId || '',
-                          });
-                          setIsDialogOpen(true);
+                          try {
+                            setEditingTeam(team);
+                            setFormData({
+                              name: team.name,
+                              description: team.description || '',
+                              departmentId: team.departmentId || '',
+                              teamLeadId: team.teamLeadId || '',
+                            });
+                            setIsDialogOpen(true);
+                          } catch (error) {
+                            console.error('Error opening edit dialog:', error);
+                            toast({
+                              title: 'Error',
+                              description: 'Failed to open edit dialog',
+                              variant: 'destructive',
+                            });
+                          }
                         }}
                       >
                         <Edit className="h-4 w-4" />
@@ -799,14 +817,14 @@ function TeamsManagement() {
               <div className="space-y-2">
                 <Label htmlFor="teamDepartment">Department</Label>
                 <Select
-                  value={formData.departmentId}
-                  onValueChange={(value) => setFormData({ ...formData, departmentId: value })}
+                  value={formData.departmentId || 'none'}
+                  onValueChange={(value) => setFormData({ ...formData, departmentId: value === 'none' ? '' : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No Department</SelectItem>
+                    <SelectItem value="none">No Department</SelectItem>
                     {departments.map((dept) => (
                       <SelectItem key={dept.id} value={dept.id}>
                         {dept.name}
@@ -818,14 +836,14 @@ function TeamsManagement() {
               <div className="space-y-2">
                 <Label htmlFor="teamLead">Team Lead</Label>
                 <Select
-                  value={formData.teamLeadId}
-                  onValueChange={(value) => setFormData({ ...formData, teamLeadId: value })}
+                  value={formData.teamLeadId || 'none'}
+                  onValueChange={(value) => setFormData({ ...formData, teamLeadId: value === 'none' ? '' : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select team lead" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No Team Lead</SelectItem>
+                    <SelectItem value="none">No Team Lead</SelectItem>
                     {users.map((user) => (
                       <SelectItem key={user.id} value={user.id}>
                         {user.firstName} {user.lastName} ({user.email})
@@ -984,12 +1002,21 @@ function DepartmentsManagement() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setEditingDepartment(dept);
-                          setFormData({
-                            name: dept.name,
-                            description: dept.description || '',
-                          });
-                          setIsDialogOpen(true);
+                          try {
+                            setEditingDepartment(dept);
+                            setFormData({
+                              name: dept.name,
+                              description: dept.description || '',
+                            });
+                            setIsDialogOpen(true);
+                          } catch (error) {
+                            console.error('Error opening edit dialog:', error);
+                            toast({
+                              title: 'Error',
+                              description: 'Failed to open edit dialog',
+                              variant: 'destructive',
+                            });
+                          }
                         }}
                       >
                         <Edit className="h-4 w-4" />
@@ -1233,13 +1260,22 @@ function AllowedDomainsManagement() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setEditingDomain(domain);
-                          setFormData({
-                            domain: domain.domain,
-                            autoAssignTeamId: domain.autoAssignTeamId || '',
-                            autoAssignDepartmentId: domain.autoAssignDepartmentId || '',
-                          });
-                          setIsDialogOpen(true);
+                          try {
+                            setEditingDomain(domain);
+                            setFormData({
+                              domain: domain.domain,
+                              autoAssignTeamId: domain.autoAssignTeamId || '',
+                              autoAssignDepartmentId: domain.autoAssignDepartmentId || '',
+                            });
+                            setIsDialogOpen(true);
+                          } catch (error) {
+                            console.error('Error opening edit dialog:', error);
+                            toast({
+                              title: 'Error',
+                              description: 'Failed to open edit dialog',
+                              variant: 'destructive',
+                            });
+                          }
                         }}
                       >
                         <Edit className="h-4 w-4" />
@@ -1281,14 +1317,14 @@ function AllowedDomainsManagement() {
               <div className="space-y-2">
                 <Label htmlFor="autoTeam">Auto-Assign Team (Optional)</Label>
                 <Select
-                  value={formData.autoAssignTeamId}
-                  onValueChange={(value) => setFormData({ ...formData, autoAssignTeamId: value })}
+                  value={formData.autoAssignTeamId || 'none'}
+                  onValueChange={(value) => setFormData({ ...formData, autoAssignTeamId: value === 'none' ? '' : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select team" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No Auto-Assignment</SelectItem>
+                    <SelectItem value="none">No Auto-Assignment</SelectItem>
                     {teams.map((team) => (
                       <SelectItem key={team.id} value={team.id}>
                         {team.name}
@@ -1301,14 +1337,14 @@ function AllowedDomainsManagement() {
               <div className="space-y-2">
                 <Label htmlFor="autoDept">Auto-Assign Department (Optional)</Label>
                 <Select
-                  value={formData.autoAssignDepartmentId}
-                  onValueChange={(value) => setFormData({ ...formData, autoAssignDepartmentId: value })}
+                  value={formData.autoAssignDepartmentId || 'none'}
+                  onValueChange={(value) => setFormData({ ...formData, autoAssignDepartmentId: value === 'none' ? '' : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No Auto-Assignment</SelectItem>
+                    <SelectItem value="none">No Auto-Assignment</SelectItem>
                     {departments.map((dept) => (
                       <SelectItem key={dept.id} value={dept.id}>
                         {dept.name}
