@@ -80,8 +80,67 @@ export default function Dashboard() {
     return daysUntilDeadline <= 7 && daysUntilDeadline > 0 && p.status === 'active';
   });
 
-  // Calculate productivity (completed tasks / total tasks)
-  const productivity = tasks.length > 0 ? Math.round((stats.completedTasks / tasks.length) * 100) : 0;
+  // Calculate productivity based on 40 hours/week per member
+  // Productivity = (actual hours worked / available hours) * 100
+  const [productivity, setProductivity] = useState(0);
+  const [availableHours, setAvailableHours] = useState(40);
+
+  useEffect(() => {
+    const calculateProductivity = async () => {
+      try {
+        const { supabase } = await import('@/lib/supabase');
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setProductivity(0);
+          return;
+        }
+
+        // Get current week start (Monday)
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust to Monday
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - diff);
+        weekStart.setHours(0, 0, 0, 0);
+
+        // Get available hours for this week (default 40)
+        const weekStartStr = weekStart.toISOString().split('T')[0];
+        const { data: weeklyHours } = await supabase
+          .from('user_weekly_hours')
+          .select('availableHours')
+          .eq('userId', user.id)
+          .eq('weekStartDate', weekStartStr)
+          .single();
+
+        const hours = weeklyHours?.availableHours || 40;
+        setAvailableHours(hours);
+        const availableMinutes = hours * 60;
+
+        // Get actual hours worked this week
+        const weekTimeEntries = timeEntries.filter(entry => {
+          const entryDate = new Date(entry.startTime);
+          return entryDate >= weekStart;
+        });
+        const actualMinutes = weekTimeEntries.reduce((sum, entry) => sum + (entry.durationMinutes || 0), 0);
+
+        // Calculate productivity percentage
+        if (availableMinutes === 0) {
+          setProductivity(0);
+        } else {
+          setProductivity(Math.min(100, Math.round((actualMinutes / availableMinutes) * 100)));
+        }
+      } catch (error) {
+        console.error('Error calculating productivity:', error);
+        // Fallback to simple calculation
+        const fallback = tasks.length > 0 ? Math.round((stats.completedTasks / tasks.length) * 100) : 0;
+        setProductivity(fallback);
+      }
+    };
+
+    if (user && timeEntries.length >= 0) {
+      calculateProductivity();
+    }
+  }, [timeEntries, tasks, user, stats.completedTasks]);
   const completedThisWeek = tasks.filter(t => {
     if (t.status !== 'completed') return false;
     // Use createdAt as fallback since updatedAt might not exist

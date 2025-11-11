@@ -25,6 +25,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { User, Department, Team, AllowedDomain, Tag } from '@/types';
+import { adminService } from '@/lib/admin-service';
+import { RefreshCw, Settings } from 'lucide-react';
 
 export default function Admin() {
   const { user } = useAuth();
@@ -69,7 +71,7 @@ export default function Admin() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="users">
               <Users className="h-4 w-4 mr-2" />
               Users
@@ -89,6 +91,10 @@ export default function Admin() {
             <TabsTrigger value="tags">
               <TagIcon className="h-4 w-4 mr-2" />
               Tags
+            </TabsTrigger>
+            <TabsTrigger value="settings">
+              <Settings className="h-4 w-4 mr-2" />
+              Settings
             </TabsTrigger>
           </TabsList>
 
@@ -110,6 +116,10 @@ export default function Admin() {
 
           <TabsContent value="tags" className="space-y-4">
             <TagsManagement />
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-4">
+            <SettingsManagement />
           </TabsContent>
         </Tabs>
       </div>
@@ -143,17 +153,19 @@ function UsersManagement() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      // TODO: Implement API calls
-      // const usersData = await adminService.getUsers();
-      // const teamsData = await adminService.getTeams();
-      // const departmentsData = await adminService.getDepartments();
-      // setUsers(usersData);
-      // setTeams(teamsData);
-      // setDepartments(departmentsData);
+      const [usersData, teamsData, departmentsData] = await Promise.all([
+        adminService.getUsers(),
+        adminService.getTeams(),
+        adminService.getDepartments(),
+      ]);
+      setUsers(usersData);
+      setTeams(teamsData);
+      setDepartments(departmentsData);
     } catch (error) {
+      console.error('Error loading data:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load users',
+        description: error instanceof Error ? error.message : 'Failed to load data',
         variant: 'destructive',
       });
     } finally {
@@ -161,9 +173,50 @@ function UsersManagement() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSyncUsers = async () => {
     try {
-      // TODO: Implement save
+      await adminService.syncUsersFromAuth();
+      await loadData();
+      toast({
+        title: 'Success',
+        description: 'Users synced from authentication',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to sync users',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSave = async () => {
+    if (!formData.firstName || !formData.lastName || !formData.email) {
+      toast({
+        title: 'Error',
+        description: 'Please fill in all required fields',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      if (editingUser) {
+        await adminService.updateUser(editingUser.id, {
+          ...formData,
+          teamId: formData.teamId || null,
+          departmentId: formData.departmentId || null,
+        });
+      } else {
+        // For new users, we need to create them in auth first
+        // This is a simplified version - in production, you'd want proper user creation
+        toast({
+          title: 'Info',
+          description: 'User creation requires authentication setup. Please use the registration page or sync existing users.',
+          variant: 'default',
+        });
+        return;
+      }
       toast({
         title: 'Success',
         description: editingUser ? 'User updated' : 'User created',
@@ -174,7 +227,7 @@ function UsersManagement() {
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to save user',
+        description: error instanceof Error ? error.message : 'Failed to save user',
         variant: 'destructive',
       });
     }
@@ -192,10 +245,16 @@ function UsersManagement() {
             <CardTitle>Users</CardTitle>
             <CardDescription>Manage system users and their permissions</CardDescription>
           </div>
-          <Button onClick={() => { setEditingUser(null); setIsDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add User
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleSyncUsers}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Sync from Auth
+            </Button>
+            <Button onClick={() => { setEditingUser(null); setFormData({ email: '', firstName: '', lastName: '', role: 'member', isActive: true, teamId: '', departmentId: '' }); setIsDialogOpen(true); }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add User
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -228,8 +287,8 @@ function UsersManagement() {
                       {user.role || 'member'}
                     </Badge>
                   </TableCell>
-                  <TableCell>-</TableCell>
-                  <TableCell>-</TableCell>
+                  <TableCell>{(user as any).teamId ? teams.find(t => t.id === (user as any).teamId)?.name || '-' : '-'}</TableCell>
+                  <TableCell>{(user as any).departmentId ? departments.find(d => d.id === (user as any).departmentId)?.name || '-' : '-'}</TableCell>
                   <TableCell>
                     <Badge variant={user.isActive ? 'default' : 'secondary'}>
                       {user.isActive ? 'Active' : 'Inactive'}
@@ -248,8 +307,8 @@ function UsersManagement() {
                             lastName: user.lastName,
                             role: user.role || 'member',
                             isActive: user.isActive ?? true,
-                            teamId: '',
-                            departmentId: '',
+                            teamId: (user as any).teamId || '',
+                            departmentId: (user as any).departmentId || '',
                           });
                           setIsDialogOpen(true);
                         }}
@@ -433,6 +492,160 @@ function TagsManagement() {
       </CardHeader>
       <CardContent>
         <p className="text-muted-foreground">Tags management coming soon...</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Settings Management Component
+function SettingsManagement() {
+  const { toast } = useToast();
+  const [settings, setSettings] = useState({
+    aiApiKey: '',
+    aiApiUrl: '',
+    aiModel: 'deepseek-reasoner',
+    supabaseUrl: '',
+    supabaseAnonKey: '',
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    setIsLoading(true);
+    try {
+      const data = await adminService.getSettings();
+      setSettings({
+        aiApiKey: data.aiApiKey || '',
+        aiApiUrl: data.aiApiUrl || '',
+        aiModel: data.aiModel || 'deepseek-reasoner',
+        supabaseUrl: data.supabaseUrl || '',
+        supabaseAnonKey: data.supabaseAnonKey || '',
+      });
+    } catch (error) {
+      console.error('Error loading settings:', error);
+      // Settings might not exist yet, that's okay
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await adminService.updateSettings(settings);
+      toast({
+        title: 'Success',
+        description: 'Settings saved successfully. Note: You may need to update environment variables in Vercel for these to take effect in production.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to save settings',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return <div className="text-center py-12">Loading settings...</div>;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>System Settings</CardTitle>
+        <CardDescription>Manage API keys, models, and system configuration</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-lg font-semibold mb-4">AI Configuration</h3>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="aiApiKey">AI API Key</Label>
+                <Input
+                  id="aiApiKey"
+                  type="password"
+                  value={settings.aiApiKey}
+                  onChange={(e) => setSettings({ ...settings, aiApiKey: e.target.value })}
+                  placeholder="Enter your AI API key"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your DeepSeek or other AI provider API key
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="aiApiUrl">AI API URL</Label>
+                <Input
+                  id="aiApiUrl"
+                  value={settings.aiApiUrl}
+                  onChange={(e) => setSettings({ ...settings, aiApiUrl: e.target.value })}
+                  placeholder="https://api.deepseek.com/v1/chat/completions"
+                />
+                <p className="text-xs text-muted-foreground">
+                  The API endpoint URL for your AI provider
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="aiModel">AI Model</Label>
+                <Select
+                  value={settings.aiModel}
+                  onValueChange={(value) => setSettings({ ...settings, aiModel: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="deepseek-reasoner">DeepSeek Reasoner</SelectItem>
+                    <SelectItem value="deepseek-chat">DeepSeek Chat</SelectItem>
+                    <SelectItem value="gpt-4">GPT-4</SelectItem>
+                    <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  The AI model to use for processing
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <h3 className="text-lg font-semibold mb-4">Supabase Configuration</h3>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="supabaseUrl">Supabase URL</Label>
+                <Input
+                  id="supabaseUrl"
+                  value={settings.supabaseUrl}
+                  onChange={(e) => setSettings({ ...settings, supabaseUrl: e.target.value })}
+                  placeholder="https://your-project.supabase.co"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="supabaseAnonKey">Supabase Anon Key</Label>
+                <Input
+                  id="supabaseAnonKey"
+                  type="password"
+                  value={settings.supabaseAnonKey}
+                  onChange={(e) => setSettings({ ...settings, supabaseAnonKey: e.target.value })}
+                  placeholder="Enter your Supabase anon key"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4 border-t">
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? 'Saving...' : 'Save Settings'}
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
