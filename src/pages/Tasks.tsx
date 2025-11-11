@@ -18,6 +18,7 @@ import { useTimeTracking } from '@/hooks/useTimeTracking';
 import { useToast } from '@/components/ui/use-toast';
 import { tasksService } from '@/lib/supabase-data';
 import { usersService } from '@/lib/users-service';
+import { supabase } from '@/lib/supabase';
 import { Task, User, Tag } from '@/types';
 import { Plus, Search, Filter, Edit, Trash2, Calendar, Clock, ArrowUpDown, CheckCircle2, Circle, PlayCircle, User as UserIcon, FolderKanban, Play, Square, Tag as TagIcon } from 'lucide-react';
 import { format } from 'date-fns';
@@ -93,7 +94,6 @@ export default function Tasks() {
 
   const loadTags = async () => {
     try {
-      const { supabase } = await import('@/lib/supabase');
       const { data, error } = await supabase
         .from('tags')
         .select('*')
@@ -107,7 +107,6 @@ export default function Tasks() {
 
   const loadTaskTags = async () => {
     try {
-      const { supabase } = await import('@/lib/supabase');
       const { data, error } = await supabase
         .from('task_tags')
         .select('taskId, tagId, tags(*)');
@@ -194,7 +193,6 @@ export default function Tasks() {
 
       // Add tags to task
       if (taskForm.selectedTags.length > 0) {
-        const { supabase } = await import('@/lib/supabase');
         const tagInserts = taskForm.selectedTags.map(tagId => ({
           taskId: task.id,
           tagId,
@@ -249,7 +247,6 @@ export default function Tasks() {
 
     try {
       // Update task via Supabase
-      const { supabase } = await import('@/lib/supabase');
       const { error } = await supabase
         .from('tasks')
         .update({
@@ -265,7 +262,6 @@ export default function Tasks() {
       if (error) throw error;
 
       // Update tags
-      const { supabase } = await import('@/lib/supabase');
       // Delete existing tags
       await supabase.from('task_tags').delete().eq('taskId', editingTask.id);
       // Insert new tags
@@ -297,7 +293,6 @@ export default function Tasks() {
 
   const handleDeleteTask = async (taskId: string) => {
     try {
-      const { supabase } = await import('@/lib/supabase');
       const { error } = await supabase
         .from('tasks')
         .delete()
