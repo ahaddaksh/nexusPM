@@ -37,7 +37,8 @@ export default function TimeTracking() {
     fetchTimeEntries();
     fetchTasks();
     fetchProjects();
-  }, [fetchTimeEntries, fetchTasks, fetchProjects]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filteredEntries = timeEntries.filter(entry => {
     const entryDate = new Date(entry.startTime).toISOString().split('T')[0];

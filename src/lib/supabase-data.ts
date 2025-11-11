@@ -315,13 +315,25 @@ export const aiSuggestionsService = {
     return data || [];
   },
 
-  async processMeeting(data: MeetingProcessData): Promise<AISuggestion[]> {
+  async processMeeting(data: MeetingProcessData, existingTaskTitles?: string[]): Promise<AISuggestion[]> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
     // For now, use the mock service but save to database
     const { deepseekService } = await import('./deepseek');
-    const suggestions = await deepseekService.processMeetingNotes(data.notes, data.projectId);
+    
+    // Get existing tasks if meetingId is provided and we need to avoid duplicates
+    let existingTasks: Array<{ title: string; description?: string }> | undefined;
+    if (existingTaskTitles && existingTaskTitles.length > 0) {
+      // Fetch task details for context
+      const { data: tasks } = await supabase
+        .from('tasks')
+        .select('title, description')
+        .in('title', existingTaskTitles);
+      existingTasks = tasks || [];
+    }
+    
+    const suggestions = await deepseekService.processMeetingNotes(data.notes, data.projectId, existingTasks);
 
     // Save meeting (projectId is optional)
     const { data: meeting, error: meetingError } = await supabase
@@ -341,6 +353,89 @@ export const aiSuggestionsService = {
 
     // Save suggestions (remove any temporary IDs, let Supabase generate UUIDs)
     const suggestionsToInsert = suggestions.map(s => ({
+      meetingId: meeting.id,
+      originalText: s.originalText,
+      suggestedTask: s.suggestedTask,
+      confidenceScore: s.confidenceScore,
+      status: s.status || 'pending',
+      reviewedBy: null,
+      reviewedAt: null,
+      rejectionReason: null,
+      createdAt: new Date().toISOString(),
+    }));
+
+    const { data: savedSuggestions, error: suggestionsError } = await supabase
+      .from('ai_suggestions')
+      .insert(suggestionsToInsert)
+      .select();
+
+    if (suggestionsError) throw suggestionsError;
+    return savedSuggestions || [];
+  },
+
+  async reprocessMeeting(meetingId: string): Promise<AISuggestion[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Get the meeting
+    const { data: meeting, error: meetingError } = await supabase
+      .from('meetings')
+      .select('*')
+      .eq('id', meetingId)
+      .eq('createdBy', user.id)
+      .single();
+
+    if (meetingError || !meeting) throw new Error('Meeting not found');
+
+    // Get all approved suggestions for this meeting to avoid duplicates
+    const { data: approvedSuggestions } = await supabase
+      .from('ai_suggestions')
+      .select('suggestedTask, originalText')
+      .eq('meetingId', meetingId)
+      .eq('status', 'approved');
+
+    // Also get tasks that might have been created from these suggestions
+    // (We'll use the suggestedTask titles to match)
+    const existingTaskTitles = approvedSuggestions?.map(s => s.suggestedTask) || [];
+
+    // Process meeting notes with existing tasks as context
+    const { deepseekService } = await import('./deepseek');
+    const existingTasks = approvedSuggestions?.map(s => ({
+      title: s.suggestedTask,
+      description: s.originalText,
+    })) || [];
+
+    const newSuggestions = await deepseekService.processMeetingNotes(
+      meeting.notes,
+      meeting.projectId || undefined,
+      existingTasks
+    );
+
+    // Filter out suggestions that are too similar to existing approved ones
+    const filteredSuggestions = newSuggestions.filter(newSuggestion => {
+      const newTitle = newSuggestion.suggestedTask.toLowerCase().trim();
+      return !existingTaskTitles.some(existingTitle => {
+        const existing = existingTitle.toLowerCase().trim();
+        // Check for exact match or very high similarity (>80% similar)
+        if (newTitle === existing) return true;
+        // Simple similarity check - if one contains the other or vice versa
+        if (newTitle.includes(existing) || existing.includes(newTitle)) {
+          return true;
+        }
+        // Check word overlap (if more than 50% of words match, consider it duplicate)
+        const newWords = newTitle.split(/\s+/);
+        const existingWords = existing.split(/\s+/);
+        const commonWords = newWords.filter(w => existingWords.includes(w));
+        return commonWords.length / Math.max(newWords.length, existingWords.length) > 0.5;
+      });
+    });
+
+    // Save only the new, non-duplicate suggestions
+    if (filteredSuggestions.length === 0) {
+      return [];
+    }
+
+    const suggestionsToInsert = filteredSuggestions.map(s => ({
       meetingId: meeting.id,
       originalText: s.originalText,
       suggestedTask: s.suggestedTask,

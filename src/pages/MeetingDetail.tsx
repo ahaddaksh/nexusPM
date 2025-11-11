@@ -8,6 +8,7 @@ import AppLayout from '@/components/AppLayout';
 import { useMeetings } from '@/hooks/useMeetings';
 import { useProjects } from '@/hooks/useProjects';
 import { useTasks } from '@/hooks/useTasks';
+import { useAISuggestions } from '@/hooks/useAISuggestions';
 import { useToast } from '@/components/ui/use-toast';
 import { Meeting, AISuggestion, Task } from '@/types';
 import { 
@@ -19,7 +20,9 @@ import {
   XCircle, 
   Circle,
   FolderKanban,
-  AlertCircle
+  AlertCircle,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -29,11 +32,13 @@ export default function MeetingDetail() {
   const { getMeeting, getMeetingSuggestions, isLoading, error } = useMeetings();
   const { projects, fetchProjects } = useProjects();
   const { tasks, fetchTasks } = useTasks();
+  const { reprocessMeeting, isLoading: isReprocessing } = useAISuggestions();
   const { toast } = useToast();
 
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
   const [tasksFromMeeting, setTasksFromMeeting] = useState<Task[]>([]);
+  const [isReprocessingMeeting, setIsReprocessingMeeting] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -67,6 +72,41 @@ export default function MeetingDetail() {
         description: 'Failed to load meeting details',
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleReprocessMeeting = async () => {
+    if (!meeting) return;
+
+    setIsReprocessingMeeting(true);
+    try {
+      const newSuggestions = await reprocessMeeting(meeting.id);
+      
+      // Reload suggestions to get all of them
+      if (meeting.id) {
+        const updatedSuggestions = await getMeetingSuggestions(meeting.id);
+        setSuggestions(updatedSuggestions);
+      }
+
+      if (newSuggestions.length === 0) {
+        toast({
+          title: 'No new suggestions',
+          description: 'All tasks from this meeting have already been suggested. No new tasks found.',
+        });
+      } else {
+        toast({
+          title: 'Success',
+          description: `Found ${newSuggestions.length} new task suggestion(s) that don't duplicate existing approved tasks.`,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to reprocess meeting',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsReprocessingMeeting(false);
     }
   };
 
@@ -264,6 +304,24 @@ export default function MeetingDetail() {
                 <CardTitle>Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
+                <Button
+                  variant="default"
+                  className="w-full justify-start bg-blue-600 hover:bg-blue-700"
+                  onClick={handleReprocessMeeting}
+                  disabled={isReprocessingMeeting || isReprocessing}
+                >
+                  {isReprocessingMeeting || isReprocessing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Reprocessing...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Reprocess with AI
+                    </>
+                  )}
+                </Button>
                 <Button
                   variant="outline"
                   className="w-full justify-start"

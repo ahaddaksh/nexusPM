@@ -64,6 +64,21 @@ export const useAISuggestions = () => {
     }
   }, []);
 
+  const reprocessMeeting = useCallback(async (meetingId: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const newSuggestions = await aiSuggestionsService.reprocessMeeting(meetingId);
+      setSuggestions(prev => [...prev, ...newSuggestions]);
+      return newSuggestions;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reprocess meeting');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   return {
     suggestions,
     isLoading,
@@ -72,5 +87,6 @@ export const useAISuggestions = () => {
     processMeeting,
     approveSuggestion,
     rejectSuggestion,
+    reprocessMeeting,
   };
 };

@@ -19,7 +19,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { tasksService } from '@/lib/supabase-data';
 import { usersService } from '@/lib/users-service';
 import { Task, User } from '@/types';
-import { Plus, Search, Filter, Edit, Trash2, Calendar, Clock, ArrowUpDown, CheckCircle2, Circle, PlayCircle, User as UserIcon, FolderKanban } from 'lucide-react';
+import { Plus, Search, Filter, Edit, Trash2, Calendar, Clock, ArrowUpDown, CheckCircle2, Circle, PlayCircle, User as UserIcon, FolderKanban, Play, Square } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function Tasks() {
@@ -27,7 +27,7 @@ export default function Tasks() {
   const { user } = useAuth();
   const { tasks, fetchTasks, createTask, updateTaskStatus, isLoading, error: tasksError } = useTasks();
   const { projects, fetchProjects } = useProjects();
-  const { timeEntries, fetchTimeEntries } = useTimeTracking();
+  const { timeEntries, fetchTimeEntries, activeTimer, startTimer, stopTimer } = useTimeTracking();
   const { toast } = useToast();
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   
@@ -75,7 +75,7 @@ export default function Tasks() {
       }
     };
     loadData();
-  }, [fetchTasks, fetchProjects, fetchTimeEntries, toast]);
+  }, []);
 
   // Filtered and sorted tasks
   const filteredTasks = useMemo(() => {
@@ -237,6 +237,44 @@ export default function Tasks() {
         description: error instanceof Error ? error.message : 'Failed to delete task',
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleTimerToggle = async (task: Task) => {
+    const isTaskTimerActive = activeTimer?.taskId === task.id;
+    
+    if (isTaskTimerActive && activeTimer) {
+      // Stop timer
+      try {
+        await stopTimer(activeTimer.id);
+        await fetchTimeEntries();
+        toast({
+          title: 'Success',
+          description: 'Timer stopped',
+        });
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Failed to stop timer',
+          variant: 'destructive',
+        });
+      }
+    } else {
+      // Start timer
+      try {
+        await startTimer(task.id);
+        await fetchTimeEntries();
+        toast({
+          title: 'Success',
+          description: 'Timer started',
+        });
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Failed to start timer',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
@@ -627,6 +665,7 @@ export default function Tasks() {
                   const progressPercentage = task.estimatedHours > 0 
                     ? Math.min(100, (totalTime / (task.estimatedHours * 60)) * 100)
                     : 0;
+                  const isTaskTimerActive = activeTimer?.taskId === task.id;
                   
                   return (
                     <Card
@@ -749,6 +788,27 @@ export default function Tasks() {
 
                         {/* Actions */}
                         <div className="flex items-center justify-end gap-2 pt-2 border-t">
+                          <Button
+                            variant={isTaskTimerActive ? "default" : "ghost"}
+                            size="sm"
+                            className={`h-7 text-xs ${isTaskTimerActive ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTimerToggle(task);
+                            }}
+                          >
+                            {isTaskTimerActive ? (
+                              <>
+                                <Square className="h-3 w-3 mr-1" />
+                                Stop
+                              </>
+                            ) : (
+                              <>
+                                <Play className="h-3 w-3 mr-1" />
+                                Start
+                              </>
+                            )}
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"

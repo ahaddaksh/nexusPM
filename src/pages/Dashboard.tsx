@@ -28,7 +28,8 @@ export default function Dashboard() {
     fetchProjects();
     fetchTasks();
     fetchTimeEntries();
-  }, [fetchProjects, fetchTasks, fetchTimeEntries]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const completedTasks = tasks.filter(task => task.status === 'completed').length;

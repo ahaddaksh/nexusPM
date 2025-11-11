@@ -17,7 +17,11 @@ const AI_API_KEY = import.meta.env.VITE_AI_API_KEY;
 const AI_API_URL = import.meta.env.VITE_AI_API_URL || 'https://api.deepseek.com/chat/completions';
 
 export const deepseekService = {
-  async processMeetingNotes(notes: string, projectId?: string): Promise<AISuggestion[]> {
+  async processMeetingNotes(
+    notes: string, 
+    projectId?: string, 
+    existingTasks?: Array<{ title: string; description?: string }>
+  ): Promise<AISuggestion[]> {
     // If API key is configured, use real API
     if (AI_API_KEY && AI_API_URL) {
       try {
@@ -32,11 +36,13 @@ export const deepseekService = {
             messages: [
               {
                 role: 'system',
-                content: 'You are a helpful assistant that extracts actionable tasks from meeting notes. You must return a valid JSON object with a "suggestions" array. Each suggestion must have: originalText (excerpt from notes), suggestedTask (task title), and confidenceScore (a number between 0 and 1).',
+                content: 'You are a helpful assistant that extracts actionable tasks from meeting notes. You must return a valid JSON object with a "suggestions" array. Each suggestion must have: originalText (excerpt from notes), suggestedTask (task title), and confidenceScore (a number between 0 and 1). When existing tasks are provided, only suggest NEW tasks that are different from the existing ones. Do not duplicate or recreate existing tasks.',
               },
               {
                 role: 'user',
-                content: `Extract actionable tasks from these meeting notes:\n\n${notes}\n\nReturn a JSON object with a "suggestions" array containing at least 3 task suggestions. Format: {"suggestions": [{"originalText": "...", "suggestedTask": "...", "confidenceScore": 0.8}, ...]}`,
+                content: existingTasks && existingTasks.length > 0
+                  ? `Extract NEW actionable tasks from these meeting notes. IMPORTANT: The following tasks have already been created from this meeting, so DO NOT suggest them again:\n\n${existingTasks.map(t => `- ${t.title}${t.description ? `: ${t.description}` : ''}`).join('\n')}\n\nMeeting notes:\n\n${notes}\n\nReturn a JSON object with a "suggestions" array containing NEW task suggestions that are different from the existing ones above. Only suggest tasks that are truly new and not already covered. Format: {"suggestions": [{"originalText": "...", "suggestedTask": "...", "confidenceScore": 0.8}, ...]}`
+                  : `Extract actionable tasks from these meeting notes:\n\n${notes}\n\nReturn a JSON object with a "suggestions" array containing at least 3 task suggestions. Format: {"suggestions": [{"originalText": "...", "suggestedTask": "...", "confidenceScore": 0.8}, ...]}`,
               },
             ],
             temperature: 0.7,

@@ -31,7 +31,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Circle,
-  PlayCircle
+  PlayCircle,
+  Plus
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -41,7 +42,7 @@ export default function TaskDetail() {
   const { user: currentUser } = useAuth();
   const { tasks, fetchTasks, updateTaskStatus } = useTasks();
   const { projects, fetchProjects } = useProjects();
-  const { activeTimer, startTimer, stopTimer, timeEntries, fetchTimeEntries } = useTimeTracking();
+  const { activeTimer, startTimer, stopTimer, timeEntries, fetchTimeEntries, createTimeEntry } = useTimeTracking();
   const { toast } = useToast();
 
   const [task, setTask] = useState<Task | null>(null);
@@ -56,6 +57,13 @@ export default function TaskDetail() {
     dueDate: '',
     estimatedHours: 0,
   });
+  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
+  const [manualEntry, setManualEntry] = useState({
+    startTime: new Date().toISOString().slice(0, 16),
+    endTime: new Date().toISOString().slice(0, 16),
+    description: '',
+    billable: false,
+  });
 
   useEffect(() => {
     if (id) {
@@ -64,6 +72,7 @@ export default function TaskDetail() {
       fetchTimeEntries();
       loadUsers();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const loadTask = async () => {
@@ -207,6 +216,52 @@ export default function TaskDetail() {
     }
   };
 
+  const handleManualEntry = async () => {
+    if (!task) return;
+
+    const start = new Date(manualEntry.startTime);
+    const end = new Date(manualEntry.endTime);
+    const durationMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+
+    if (durationMinutes <= 0) {
+      toast({
+        title: 'Error',
+        description: 'End time must be after start time',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await createTimeEntry({
+        taskId: task.id,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        durationMinutes,
+        description: manualEntry.description,
+        billable: manualEntry.billable,
+      });
+      await fetchTimeEntries();
+      setIsManualEntryOpen(false);
+      setManualEntry({
+        startTime: new Date().toISOString().slice(0, 16),
+        endTime: new Date().toISOString().slice(0, 16),
+        description: '',
+        billable: false,
+      });
+      toast({
+        title: 'Success',
+        description: 'Time entry added successfully',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to add time entry',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const getStatusIcon = (status: Task['status']) => {
     switch (status) {
       case 'completed':
@@ -252,23 +307,21 @@ export default function TaskDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <Navigation />
-        <div className="container mx-auto p-6">
+      <AppLayout>
+        <div className="p-6 lg:p-8">
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-muted-foreground">Loading task...</p>
           </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   if (!task) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <Navigation />
-        <div className="container mx-auto p-6">
+      <AppLayout>
+        <div className="p-6 lg:p-8">
           <Card>
             <CardContent className="pt-6">
               <div className="text-center py-12">
@@ -280,7 +333,7 @@ export default function TaskDetail() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
@@ -443,7 +496,17 @@ export default function TaskDetail() {
                 )}
                 <Separator />
                 <div>
-                  <p className="text-sm font-medium mb-2">Time Entries ({taskTimeEntries.length})</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-medium">Time Entries ({taskTimeEntries.length})</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsManualEntryOpen(true)}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Entry
+                    </Button>
+                  </div>
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {taskTimeEntries.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No time entries yet</p>
@@ -453,6 +516,7 @@ export default function TaskDetail() {
                           <div>
                             <p className="text-sm">
                               {entry.startTime && format(new Date(entry.startTime), 'MMM dd, h:mm a')}
+                              {entry.endTime && ` - ${format(new Date(entry.endTime), 'h:mm a')}`}
                             </p>
                             {entry.description && (
                               <p className="text-xs text-muted-foreground">{entry.description}</p>
@@ -616,6 +680,66 @@ export default function TaskDetail() {
           </div>
         </div>
       </div>
+
+      {/* Manual Time Entry Dialog */}
+      <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Time Entry</DialogTitle>
+            <DialogDescription>
+              Manually add a time entry for this task
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="start-time">Start Time</Label>
+              <Input
+                id="start-time"
+                type="datetime-local"
+                value={manualEntry.startTime}
+                onChange={(e) => setManualEntry({ ...manualEntry, startTime: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="end-time">End Time</Label>
+              <Input
+                id="end-time"
+                type="datetime-local"
+                value={manualEntry.endTime}
+                onChange={(e) => setManualEntry({ ...manualEntry, endTime: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={manualEntry.description}
+                onChange={(e) => setManualEntry({ ...manualEntry, description: e.target.value })}
+                placeholder="What did you work on?"
+                rows={3}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="billable"
+                checked={manualEntry.billable}
+                onChange={(e) => setManualEntry({ ...manualEntry, billable: e.target.checked })}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <Label htmlFor="billable" className="cursor-pointer">Billable</Label>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsManualEntryOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleManualEntry}>
+                Add Time Entry
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

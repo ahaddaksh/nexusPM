@@ -31,7 +31,8 @@ export default function ProjectDetail() {
     fetchProjects();
     fetchTasks();
     fetchTimeEntries();
-  }, [fetchProjects, fetchTasks, fetchTimeEntries]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (id && projects.length > 0) {
