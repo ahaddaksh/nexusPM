@@ -811,7 +811,18 @@ function TeamsManagement() {
       setIsDialogOpen(false);
       setEditingTeam(null);
       setFormData({ name: '', description: '', departmentId: '', teamLeadId: '' });
-      await loadData();
+      // Reload data, but don't fail if it errors (data was created successfully)
+      try {
+        await loadData();
+      } catch (reloadError) {
+        console.warn('Error reloading data after save:', reloadError);
+        // Data was created successfully, so just show a message
+        toast({
+          title: 'Success',
+          description: 'Team saved successfully. Please refresh the page to see it in the list.',
+          variant: 'default',
+        });
+      }
     } catch (error) {
       console.error('Error saving team:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1074,7 +1085,18 @@ function DepartmentsManagement() {
       setIsDialogOpen(false);
       setEditingDepartment(null);
       setFormData({ name: '', description: '' });
-      await loadData();
+      // Reload data, but don't fail if it errors (data was created successfully)
+      try {
+        await loadData();
+      } catch (reloadError) {
+        console.warn('Error reloading data after save:', reloadError);
+        // Data was created successfully, so just show a message
+        toast({
+          title: 'Success',
+          description: 'Department saved successfully. Please refresh the page to see it in the list.',
+          variant: 'default',
+        });
+      }
     } catch (error) {
       console.error('Error saving department:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1305,7 +1327,18 @@ function AllowedDomainsManagement() {
       setIsDialogOpen(false);
       setEditingDomain(null);
       setFormData({ domain: '' });
-      await loadData();
+      // Reload data, but don't fail if it errors (data was created successfully)
+      try {
+        await loadData();
+      } catch (reloadError) {
+        console.warn('Error reloading data after save:', reloadError);
+        // Data was created successfully, so just show a message
+        toast({
+          title: 'Success',
+          description: 'Domain saved successfully. Please refresh the page to see it in the list.',
+          variant: 'default',
+        });
+      }
     } catch (error) {
       console.error('Error saving domain:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);

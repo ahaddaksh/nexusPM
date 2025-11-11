@@ -4,14 +4,22 @@ import { User, Team, Department, AllowedDomain, Tag } from '../types';
 export const adminService = {
   // Users
   async getUsers(): Promise<User[]> {
-    // Try camelCase first (migration uses camelCase)
+    // Try selecting specific columns first to avoid issues with select('*')
     let result = await supabase
       .from('users')
-      .select('*')
+      .select('id, email, firstName, lastName, role, isActive, teamId, departmentId, createdAt, updatedAt')
       .order('createdAt', { ascending: false });
     
-    // If camelCase fails, try lowercase (PostgreSQL lowercases unquoted)
+    // If camelCase columns fail, try lowercase
     if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column') || result.error.message?.includes('createdAt'))) {
+      result = await supabase
+        .from('users')
+        .select('id, email, firstname, lastname, role, isactive, teamid, departmentid, createdat, updatedat')
+        .order('createdat', { ascending: false });
+    }
+    
+    // If that also fails, try select('*') as last resort
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
       result = await supabase
         .from('users')
         .select('*')
@@ -24,9 +32,22 @@ export const adminService = {
         console.warn('Users table does not exist. Please run the migration.');
         return [];
       }
-      throw result.error;
+      console.error('Error loading users:', result.error);
+      // Return empty array instead of throwing to prevent UI crash
+      return [];
     }
-    return result.data || [];
+    
+    // Normalize column names (handle both camelCase and lowercase)
+    return (result.data || []).map((user: any) => ({
+      ...user,
+      firstName: user.firstName || user.firstname || user.first_name || '',
+      lastName: user.lastName || user.lastname || user.last_name || '',
+      isActive: user.isActive !== undefined ? user.isActive : (user.isactive !== undefined ? user.isactive : (user.is_active !== undefined ? user.is_active : true)),
+      teamId: user.teamId || user.teamid || user.team_id || null,
+      departmentId: user.departmentId || user.departmentid || user.department_id || null,
+      createdAt: user.createdAt || user.createdat || user.created_at,
+      updatedAt: user.updatedAt || user.updatedat || user.updated_at,
+    }));
   },
 
   async getUserById(id: string): Promise<User | null> {
@@ -94,19 +115,40 @@ export const adminService = {
 
   // Teams
   async getTeams(): Promise<Team[]> {
-    const { data, error } = await supabase
+    // Try selecting specific columns first to avoid issues with select('*')
+    let result = await supabase
       .from('teams')
-      .select('*')
+      .select('id, name, description, departmentId, teamLeadId, createdBy, createdAt, updatedAt')
       .order('name');
-    if (error) {
-      if (error.code === '42P01' || error.code === 'PGRST202' || error.message?.includes('does not exist')) {
+    
+    // If camelCase columns fail, try lowercase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('teams')
+        .select('id, name, description, departmentid, teamleadid, createdby, createdat, updatedat')
+        .order('name');
+    }
+    
+    // If that also fails, try select('*') as last resort
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('teams')
+        .select('*')
+        .order('name');
+    }
+    
+    if (result.error) {
+      if (result.error.code === '42P01' || result.error.code === 'PGRST202' || result.error.message?.includes('does not exist')) {
         console.warn('Teams table does not exist. Please run the migration.');
         return [];
       }
-      throw error;
+      console.error('Error loading teams:', result.error);
+      // Return empty array instead of throwing to prevent UI crash
+      return [];
     }
+    
     // Normalize column names (handle both camelCase and lowercase)
-    return (data || []).map((team: any) => ({
+    return (result.data || []).map((team: any) => ({
       ...team,
       departmentId: team.departmentId || team.departmentid || null,
       teamLeadId: team.teamLeadId || team.teamleadid || null,
@@ -211,19 +253,40 @@ export const adminService = {
 
   // Departments
   async getDepartments(): Promise<Department[]> {
-    const { data, error } = await supabase
+    // Try selecting specific columns first to avoid issues with select('*')
+    let result = await supabase
       .from('departments')
-      .select('*')
+      .select('id, name, description, createdBy, createdAt, updatedAt')
       .order('name');
-    if (error) {
-      if (error.code === '42P01' || error.code === 'PGRST202' || error.message?.includes('does not exist')) {
+    
+    // If camelCase columns fail, try lowercase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('departments')
+        .select('id, name, description, createdby, createdat, updatedat')
+        .order('name');
+    }
+    
+    // If that also fails, try select('*') as last resort
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('departments')
+        .select('*')
+        .order('name');
+    }
+    
+    if (result.error) {
+      if (result.error.code === '42P01' || result.error.code === 'PGRST202' || result.error.message?.includes('does not exist')) {
         console.warn('Departments table does not exist. Please run the migration.');
         return [];
       }
-      throw error;
+      console.error('Error loading departments:', result.error);
+      // Return empty array instead of throwing to prevent UI crash
+      return [];
     }
+    
     // Normalize column names (handle both camelCase and lowercase)
-    return (data || []).map((dept: any) => ({
+    return (result.data || []).map((dept: any) => ({
       ...dept,
       createdAt: dept.createdAt || dept.createdat || dept.created_at,
       updatedAt: dept.updatedAt || dept.updatedat || dept.updated_at,
@@ -314,19 +377,40 @@ export const adminService = {
 
   // Allowed Domains
   async getAllowedDomains(): Promise<AllowedDomain[]> {
-    const { data, error } = await supabase
+    // Try selecting specific columns first to avoid issues with select('*')
+    let result = await supabase
       .from('allowed_domains')
-      .select('*')
+      .select('id, domain, isActive, autoAssignTeamId, autoAssignDepartmentId, createdBy, createdAt, updatedAt')
       .order('domain');
-    if (error) {
-      if (error.code === '42P01' || error.code === 'PGRST202' || error.message?.includes('does not exist')) {
+    
+    // If camelCase columns fail, try lowercase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('allowed_domains')
+        .select('id, domain, isactive, autoassignteamid, autoassigndepartmentid, createdby, createdat, updatedat')
+        .order('domain');
+    }
+    
+    // If that also fails, try select('*') as last resort
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('allowed_domains')
+        .select('*')
+        .order('domain');
+    }
+    
+    if (result.error) {
+      if (result.error.code === '42P01' || result.error.code === 'PGRST202' || result.error.message?.includes('does not exist')) {
         console.warn('Allowed domains table does not exist. Please run the migration.');
         return [];
       }
-      throw error;
+      console.error('Error loading allowed domains:', result.error);
+      // Return empty array instead of throwing to prevent UI crash
+      return [];
     }
+    
     // Normalize column names (handle both camelCase and lowercase)
-    return (data || []).map((domain: any) => ({
+    return (result.data || []).map((domain: any) => ({
       ...domain,
       isActive: domain.isActive !== undefined ? domain.isActive : (domain.isactive !== undefined ? domain.isactive : (domain.is_active !== undefined ? domain.is_active : true)),
       autoAssignTeamId: domain.autoAssignTeamId || domain.autoassignteamid || domain.auto_assign_team_id || null,
