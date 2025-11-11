@@ -408,26 +408,45 @@ function UsersManagement() {
         }
 
         // Create user record in users table
-        const { error: userError } = await supabase
+        // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
+        let userResult = await supabase
           .from('users')
           .insert({
             id: authData.user.id,
             email: formData.email,
-            firstName: formData.firstName,
-            lastName: formData.lastName,
+            firstname: formData.firstName,
+            lastname: formData.lastName,
             role: formData.role,
-            isActive: formData.isActive,
-            teamId: formData.teamId || null,
-            departmentId: formData.departmentId || null,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            isactive: formData.isActive,
+            teamid: formData.teamId || null,
+            departmentid: formData.departmentId || null,
+            createdat: new Date().toISOString(),
+            updatedat: new Date().toISOString(),
           });
 
-        if (userError) {
+        // If lowercase fails, try camelCase
+        if (userResult.error && (userResult.error.code === 'PGRST204' || userResult.error.message?.includes('column'))) {
+          userResult = await supabase
+            .from('users')
+            .insert({
+              id: authData.user.id,
+              email: formData.email,
+              firstName: formData.firstName,
+              lastName: formData.lastName,
+              role: formData.role,
+              isActive: formData.isActive,
+              teamId: formData.teamId || null,
+              departmentId: formData.departmentId || null,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
+        }
+
+        if (userResult.error) {
           // If user table insert fails, try to clean up auth user
-          console.error('Failed to create user record:', userError);
+          console.error('Failed to create user record:', userResult.error);
           // Note: We can't easily delete the auth user without admin privileges
-          throw new Error(`Failed to create user record: ${userError.message}`);
+          throw new Error(`Failed to create user record: ${userResult.error.message}`);
         }
 
         // Send password reset email so user can set their own password

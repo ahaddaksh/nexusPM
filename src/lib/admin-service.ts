@@ -4,18 +4,18 @@ import { User, Team, Department, AllowedDomain, Tag } from '../types';
 export const adminService = {
   // Users
   async getUsers(): Promise<User[]> {
-    // Try selecting specific columns first to avoid issues with select('*')
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
     let result = await supabase
       .from('users')
-      .select('id, email, firstName, lastName, role, isActive, teamId, departmentId, createdAt, updatedAt')
-      .order('createdAt', { ascending: false });
+      .select('id, email, firstname, lastname, role, isactive, teamid, departmentid, createdat, updatedat')
+      .order('createdat', { ascending: false });
     
-    // If camelCase columns fail, try lowercase
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column') || result.error.message?.includes('createdAt'))) {
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column') || result.error.message?.includes('createdat'))) {
       result = await supabase
         .from('users')
-        .select('id, email, firstname, lastname, role, isactive, teamid, departmentid, createdat, updatedat')
-        .order('createdat', { ascending: false });
+        .select('id, email, firstName, lastName, role, isActive, teamId, departmentId, createdAt, updatedAt')
+        .order('createdAt', { ascending: false });
     }
     
     // If that also fails, try select('*') as last resort
@@ -86,23 +86,42 @@ export const adminService = {
         // Fallback: Try to get current user and sync manually
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const { error: upsertError } = await supabase
+          // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
+          let result = await supabase
             .from('users')
             .upsert({
               id: user.id,
               email: user.email || '',
-              firstName: user.user_metadata?.firstName || '',
-              lastName: user.user_metadata?.lastName || '',
+              firstname: user.user_metadata?.firstName || '',
+              lastname: user.user_metadata?.lastName || '',
               role: user.user_metadata?.role || 'member',
-              isActive: true,
-              createdAt: user.created_at,
-              updatedAt: new Date().toISOString(),
+              isactive: true,
+              createdat: user.created_at,
+              updatedat: new Date().toISOString(),
             }, {
               onConflict: 'id',
             });
           
-          if (upsertError) {
-            throw new Error(`Failed to sync user: ${upsertError.message}. Please ensure the users table exists and run the migration.`);
+          // If lowercase fails, try camelCase
+          if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+            result = await supabase
+              .from('users')
+              .upsert({
+                id: user.id,
+                email: user.email || '',
+                firstName: user.user_metadata?.firstName || '',
+                lastName: user.user_metadata?.lastName || '',
+                role: user.user_metadata?.role || 'member',
+                isActive: true,
+                createdAt: user.created_at,
+                updatedAt: new Date().toISOString(),
+              }, {
+                onConflict: 'id',
+              });
+          }
+          
+          if (result.error) {
+            throw new Error(`Failed to sync user: ${result.error.message}. Please ensure the users table exists and run the migration.`);
           }
           return; // Successfully synced current user
         }
@@ -115,17 +134,17 @@ export const adminService = {
 
   // Teams
   async getTeams(): Promise<Team[]> {
-    // Try selecting specific columns first to avoid issues with select('*')
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
     let result = await supabase
       .from('teams')
-      .select('id, name, description, departmentId, teamLeadId, createdBy, createdAt, updatedAt')
+      .select('id, name, description, departmentid, teamleadid, createdby, createdat, updatedat')
       .order('name');
     
-    // If camelCase columns fail, try lowercase
+    // If lowercase fails, try camelCase
     if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
       result = await supabase
         .from('teams')
-        .select('id, name, description, departmentid, teamleadid, createdby, createdat, updatedat')
+        .select('id, name, description, departmentId, teamLeadId, createdBy, createdAt, updatedAt')
         .order('name');
     }
     
@@ -253,17 +272,17 @@ export const adminService = {
 
   // Departments
   async getDepartments(): Promise<Department[]> {
-    // Try selecting specific columns first to avoid issues with select('*')
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
     let result = await supabase
       .from('departments')
-      .select('id, name, description, createdBy, createdAt, updatedAt')
+      .select('id, name, description, createdby, createdat, updatedat')
       .order('name');
     
-    // If camelCase columns fail, try lowercase
+    // If lowercase fails, try camelCase
     if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
       result = await supabase
         .from('departments')
-        .select('id, name, description, createdby, createdat, updatedat')
+        .select('id, name, description, createdBy, createdAt, updatedAt')
         .order('name');
     }
     
@@ -377,17 +396,17 @@ export const adminService = {
 
   // Allowed Domains
   async getAllowedDomains(): Promise<AllowedDomain[]> {
-    // Try selecting specific columns first to avoid issues with select('*')
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
     let result = await supabase
       .from('allowed_domains')
-      .select('id, domain, isActive, autoAssignTeamId, autoAssignDepartmentId, createdBy, createdAt, updatedAt')
+      .select('id, domain, isactive, autoassignteamid, autoassigndepartmentid, createdby, createdat, updatedat')
       .order('domain');
     
-    // If camelCase columns fail, try lowercase
+    // If lowercase fails, try camelCase
     if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
       result = await supabase
         .from('allowed_domains')
-        .select('id, domain, isactive, autoassignteamid, autoassigndepartmentid, createdby, createdat, updatedat')
+        .select('id, domain, isActive, autoAssignTeamId, autoAssignDepartmentId, createdBy, createdAt, updatedAt')
         .order('domain');
     }
     
