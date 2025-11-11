@@ -68,7 +68,31 @@ After deployment, make sure:
 2. ✅ All tables are created (projects, tasks, time_entries, meetings, ai_suggestions)
 3. ✅ Row Level Security (RLS) policies are active
 
+## Step 5: Configure SPA Routing (Important!)
+
+For Vercel to properly handle client-side routing (React Router), you need a `vercel.json` file in your project root. This file has been created and should be committed to your repository.
+
+**What it does:**
+- Redirects all routes (like `/admin`, `/settings`, `/tasks/:id`) to `index.html`
+- Allows React Router to handle routing on the client side
+- Prevents 404 errors when navigating directly to routes
+
+**If you still get 404 errors:**
+1. Make sure `vercel.json` is in your project root
+2. Redeploy your application in Vercel
+3. Clear your browser cache and try again
+
 ## Troubleshooting
+
+### 404 Errors on Routes (e.g., `/admin`, `/settings`)
+
+**Cause**: Vercel doesn't know how to handle client-side routes.
+
+**Solution**:
+1. Ensure `vercel.json` exists in your project root
+2. The file should contain the rewrite rules (already included)
+3. Redeploy your application
+4. Try accessing the route again
 
 ### "Failed to create project" Error
 
