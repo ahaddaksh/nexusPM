@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/components/AppLayout';
 import { useProjects } from '@/hooks/useProjects';
 import { useTasks } from '@/hooks/useTasks';
@@ -84,6 +86,13 @@ export default function Dashboard() {
   // Productivity = (actual hours worked / available hours) * 100
   const [productivity, setProductivity] = useState(0);
   const [availableHours, setAvailableHours] = useState(40);
+  const [productivityDetails, setProductivityDetails] = useState({
+    actualMinutes: 0,
+    availableMinutes: 0,
+    weekStart: '',
+    weekTimeEntries: [] as typeof timeEntries,
+  });
+  const [isProductivityDialogOpen, setIsProductivityDialogOpen] = useState(false);
 
   useEffect(() => {
     const calculateProductivity = async () => {
@@ -122,6 +131,14 @@ export default function Dashboard() {
           return entryDate >= weekStart;
         });
         const actualMinutes = weekTimeEntries.reduce((sum, entry) => sum + (entry.durationMinutes || 0), 0);
+
+        // Store productivity details
+        setProductivityDetails({
+          actualMinutes,
+          availableMinutes,
+          weekStart: weekStartStr,
+          weekTimeEntries,
+        });
 
         // Calculate productivity percentage
         if (availableMinutes === 0) {
@@ -223,7 +240,10 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-sm">
+          <Card 
+            className="border-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setIsProductivityDialogOpen(true)}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">Productivity</CardTitle>
               <TrendingUp className="h-5 w-5 text-gray-400" />
@@ -233,6 +253,7 @@ export default function Dashboard() {
               <p className="text-xs text-green-600 mt-1">
                 {completedThisWeek > 0 ? `+${completedThisWeek} tasks this week` : 'Keep going!'}
               </p>
+              <p className="text-xs text-gray-400 mt-1">Click to view details</p>
             </CardContent>
           </Card>
         </div>
@@ -404,6 +425,119 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Productivity Details Dialog */}
+        <Dialog open={isProductivityDialogOpen} onOpenChange={setIsProductivityDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Productivity Details</DialogTitle>
+              <DialogDescription>
+                Breakdown of your productivity calculation for this week
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-gray-900">
+                        {formatTime(productivityDetails.actualMinutes)}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">Hours Worked</p>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-gray-900">
+                        {formatTime(productivityDetails.availableMinutes)}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">Available Hours</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Productivity Percentage</span>
+                  <span className="text-lg font-bold">{productivity}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className={`h-3 rounded-full transition-all ${
+                      productivity >= 100 ? 'bg-green-600' : 
+                      productivity >= 75 ? 'bg-blue-600' : 
+                      productivity >= 50 ? 'bg-yellow-600' : 
+                      'bg-red-600'
+                    }`}
+                    style={{ width: `${Math.min(100, productivity)}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-semibold text-sm">Week Start Date</h4>
+                <p className="text-sm text-muted-foreground">
+                  {productivityDetails.weekStart 
+                    ? format(new Date(productivityDetails.weekStart), 'MMMM dd, yyyy')
+                    : 'Not calculated'}
+                </p>
+              </div>
+
+              {productivityDetails.weekTimeEntries.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm">Time Entries This Week</h4>
+                  <div className="border rounded-lg">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Task</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="text-right">Duration</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {productivityDetails.weekTimeEntries
+                          .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+                          .slice(0, 10)
+                          .map((entry) => {
+                            const task = tasks.find(t => t.id === entry.taskId);
+                            return (
+                              <TableRow key={entry.id}>
+                                <TableCell className="font-medium">
+                                  {task?.title || 'Unknown Task'}
+                                </TableCell>
+                                <TableCell>
+                                  {format(new Date(entry.startTime), 'MMM dd, yyyy')}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {formatTime(entry.durationMinutes || 0)}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {productivityDetails.weekTimeEntries.length > 10 && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Showing 10 of {productivityDetails.weekTimeEntries.length} entries
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {productivityDetails.weekTimeEntries.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Clock className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p className="text-sm">No time entries this week</p>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );

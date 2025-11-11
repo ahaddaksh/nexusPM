@@ -12,6 +12,7 @@ import { Plus, Search, Calendar, Users, Tag as TagIcon } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tag } from '@/types';
+import { TagSelector } from '@/components/TagSelector';
 
 export default function Projects() {
   const navigate = useNavigate();
@@ -57,23 +58,44 @@ export default function Projects() {
   const loadProjectTags = async () => {
     try {
       const { supabase } = await import('@/lib/supabase');
-      const { data, error } = await supabase
+      // Try camelCase first, fallback to snake_case
+      let { data, error } = await supabase
         .from('project_tags')
         .select('projectId, tagId, tags(*)');
-      if (error) throw error;
+      
+      if (error) {
+        // If camelCase fails, try snake_case
+        if (error.code === '42703' || error.message?.includes('projectId') || error.message?.includes('projectid')) {
+          const result = await supabase
+            .from('project_tags')
+            .select('projectid, tagid, tags(*)');
+          
+          if (result.error) {
+            console.error('Error loading project tags:', result.error);
+            setProjectTags({});
+            return;
+          }
+          
+          data = result.data;
+        } else {
+          throw error;
+        }
+      }
       
       const tagsByProject: Record<string, Tag[]> = {};
       (data || []).forEach((pt: any) => {
-        if (!tagsByProject[pt.projectId]) {
-          tagsByProject[pt.projectId] = [];
+        const projectId = pt.projectId || pt.projectid;
+        if (!tagsByProject[projectId]) {
+          tagsByProject[projectId] = [];
         }
         if (pt.tags) {
-          tagsByProject[pt.projectId].push(pt.tags);
+          tagsByProject[projectId].push(pt.tags);
         }
       });
       setProjectTags(tagsByProject);
     } catch (error) {
       console.error('Error loading project tags:', error);
+      setProjectTags({});
     }
   };
 
@@ -104,11 +126,26 @@ export default function Projects() {
       // Add tags to project
       if (newProject.selectedTags.length > 0) {
         const { supabase } = await import('@/lib/supabase');
-        const tagInserts = newProject.selectedTags.map(tagId => ({
+        // Try camelCase first, fallback to snake_case
+        let tagInserts = newProject.selectedTags.map(tagId => ({
           projectId: project.id,
           tagId,
         }));
-        await supabase.from('project_tags').insert(tagInserts);
+        let { error: tagError } = await supabase.from('project_tags').insert(tagInserts);
+        
+        if (tagError && (tagError.code === '42703' || tagError.message?.includes('projectId') || tagError.message?.includes('projectid'))) {
+          // Try snake_case
+          tagInserts = newProject.selectedTags.map(tagId => ({
+            projectid: project.id,
+            tagid: tagId,
+          }));
+          const result = await supabase.from('project_tags').insert(tagInserts);
+          tagError = result.error;
+        }
+        
+        if (tagError && !tagError.message?.includes('does not exist')) {
+          console.error('Error inserting project tags:', tagError);
+        }
         await loadProjectTags();
       }
 
@@ -216,36 +253,11 @@ export default function Projects() {
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Tags</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {availableTags.map(tag => (
-                      <Button
-                        key={tag.id}
-                        type="button"
-                        variant={newProject.selectedTags.includes(tag.id) ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => {
-                          if (newProject.selectedTags.includes(tag.id)) {
-                            setNewProject({
-                              ...newProject,
-                              selectedTags: newProject.selectedTags.filter(id => id !== tag.id),
-                            });
-                          } else {
-                            setNewProject({
-                              ...newProject,
-                              selectedTags: [...newProject.selectedTags, tag.id],
-                            });
-                          }
-                        }}
-                        style={newProject.selectedTags.includes(tag.id) ? { backgroundColor: tag.color, borderColor: tag.color } : {}}
-                      >
-                        <TagIcon className="h-3 w-3 mr-1" />
-                        {tag.name}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
+                <TagSelector
+                  tags={availableTags}
+                  selectedTags={newProject.selectedTags}
+                  onSelectionChange={(tagIds) => setNewProject({ ...newProject, selectedTags: tagIds })}
+                />
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? 'Creating...' : 'Create Project'}
                 </Button>

@@ -379,6 +379,10 @@ export default function TaskDetail() {
       try {
         await startTimer(task.id);
         await fetchTimeEntries();
+        // Reload task to show status change
+        if (id) {
+          await loadTask();
+        }
         toast({
           title: 'Success',
           description: 'Timer started',

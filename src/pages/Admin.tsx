@@ -33,18 +33,18 @@ export default function Admin() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('users');
 
-  // Check if user is admin
+  // Check if user is admin or manager
   useEffect(() => {
-    if (user && user.role !== 'admin') {
+    if (user && user.role !== 'admin' && user.role !== 'manager') {
       toast({
         title: 'Access Denied',
-        description: 'You need admin privileges to access this page.',
+        description: 'You need admin or manager privileges to access this page.',
         variant: 'destructive',
       });
     }
   }, [user, toast]);
 
-  if (!user || user.role !== 'admin') {
+  if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
     return (
       <AppLayout>
         <div className="p-6 lg:p-8">
@@ -162,14 +162,30 @@ function UsersManagement() {
 
       if (usersResult.status === 'fulfilled') {
         setUsers(usersResult.value);
+        if (usersResult.value.length === 0) {
+          toast({
+            title: 'Info',
+            description: 'No users found. Click "Sync from Auth" to sync users from authentication.',
+            variant: 'default',
+          });
+        }
       } else {
         console.error('Error loading users:', usersResult.reason);
         setUsers([]);
-        toast({
-          title: 'Warning',
-          description: 'Could not load users. You may need to sync from authentication first.',
-          variant: 'default',
-        });
+        const errorMsg = usersResult.reason instanceof Error ? usersResult.reason.message : String(usersResult.reason);
+        if (errorMsg.includes('does not exist') || errorMsg.includes('42P01') || errorMsg.includes('PGRST202') || errorMsg.includes('NOT_FOUND')) {
+          toast({
+            title: 'Migration Required',
+            description: 'Users table does not exist. Please run the database migrations first.',
+            variant: 'destructive',
+          });
+        } else {
+          toast({
+            title: 'Warning',
+            description: 'Could not load users. You may need to sync from authentication first.',
+            variant: 'default',
+          });
+        }
       }
 
       if (teamsResult.status === 'fulfilled') {
@@ -509,18 +525,292 @@ function AllowedDomainsManagement() {
   );
 }
 
-// Tags Management Component (placeholder)
+// Tags Management Component
 function TagsManagement() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    color: '#3b82f6',
+    category: '',
+    description: '',
+  });
+
+  useEffect(() => {
+    loadTags();
+  }, []);
+
+  const loadTags = async () => {
+    setIsLoading(true);
+    try {
+      const data = await adminService.getTags();
+      setTags(data);
+    } catch (error) {
+      console.error('Error loading tags:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to load tags',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!formData.name.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Tag name is required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      if (editingTag) {
+        await adminService.updateTag(editingTag.id, formData);
+        toast({
+          title: 'Success',
+          description: 'Tag updated successfully',
+        });
+      } else {
+        await adminService.createTag(formData);
+        toast({
+          title: 'Success',
+          description: 'Tag created successfully',
+        });
+      }
+      setIsDialogOpen(false);
+      setEditingTag(null);
+      setFormData({ name: '', color: '#3b82f6', category: '', description: '' });
+      await loadTags();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to save tag',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDelete = async (tagId: string) => {
+    if (!confirm('Are you sure you want to delete this tag? This will remove it from all tasks and projects.')) {
+      return;
+    }
+
+    try {
+      await adminService.deleteTag(tagId);
+      toast({
+        title: 'Success',
+        description: 'Tag deleted successfully',
+      });
+      await loadTags();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to delete tag',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleEdit = (tag: Tag) => {
+    setEditingTag(tag);
+    setFormData({
+      name: tag.name,
+      color: tag.color || '#3b82f6',
+      category: tag.category || '',
+      description: tag.description || '',
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleNew = () => {
+    setEditingTag(null);
+    setFormData({ name: '', color: '#3b82f6', category: '', description: '' });
+    setIsDialogOpen(true);
+  };
+
+  // Check if user is admin or manager
+  if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center py-12">
+            <AlertCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
+            <p className="text-muted-foreground">You need manager or admin privileges to manage tags.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Tags</CardTitle>
-        <CardDescription>Manage tags for categorizing tasks and projects</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-muted-foreground">Tags management coming soon...</p>
-      </CardContent>
-    </Card>
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Tags</CardTitle>
+              <CardDescription>Manage tags for categorizing tasks and projects</CardDescription>
+            </div>
+            <Button onClick={handleNew}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Tag
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {tags.length === 0 ? (
+            <div className="text-center py-12">
+              <TagIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2">No tags yet</h3>
+              <p className="text-muted-foreground mb-4">Create your first tag to start categorizing tasks and projects</p>
+              <Button onClick={handleNew}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Tag
+              </Button>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Color</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tags.map((tag) => (
+                  <TableRow key={tag.id}>
+                    <TableCell className="font-medium">{tag.name}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-6 h-6 rounded border"
+                          style={{ backgroundColor: tag.color || '#3b82f6' }}
+                        />
+                        <span className="text-sm text-muted-foreground">{tag.color || '#3b82f6'}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{tag.category || '-'}</TableCell>
+                    <TableCell className="max-w-xs truncate">{tag.description || '-'}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEdit(tag)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(tag.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Create/Edit Tag Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingTag ? 'Edit Tag' : 'Create Tag'}</DialogTitle>
+            <DialogDescription>
+              {editingTag ? 'Update tag details' : 'Create a new tag for categorizing tasks and projects'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="tag-name">Name *</Label>
+              <Input
+                id="tag-name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g., Operations, Vendor Management"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tag-color">Color</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="tag-color"
+                  type="color"
+                  value={formData.color}
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  className="w-20 h-10"
+                />
+                <Input
+                  type="text"
+                  value={formData.color}
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  placeholder="#3b82f6"
+                  className="flex-1"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tag-category">Category</Label>
+              <Input
+                id="tag-category"
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                placeholder="e.g., operations, vendor, internal_bu"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tag-description">Description</Label>
+              <Textarea
+                id="tag-description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Optional description for this tag"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave}>
+              {editingTag ? 'Update' : 'Create'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

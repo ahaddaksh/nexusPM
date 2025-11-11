@@ -8,7 +8,14 @@ export const adminService = {
       .from('users')
       .select('*')
       .order('createdAt', { ascending: false });
-    if (error) throw error;
+    if (error) {
+      // If table doesn't exist, return empty array instead of throwing
+      if (error.code === '42P01' || error.code === 'PGRST202' || error.message?.includes('does not exist')) {
+        console.warn('Users table does not exist. Please run the migration.');
+        return [];
+      }
+      throw error;
+    }
     return data || [];
   },
 
@@ -42,26 +49,36 @@ export const adminService = {
     // The migration should have created a sync function
     const { error } = await supabase.rpc('sync_users_from_auth');
     if (error) {
-      // Fallback: Try to get current user and sync manually
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from('users')
-          .upsert({
-            id: user.id,
-            email: user.email || '',
-            firstName: user.user_metadata?.firstName || '',
-            lastName: user.user_metadata?.lastName || '',
-            role: user.user_metadata?.role || 'member',
-            isActive: true,
-            createdAt: user.created_at,
-            updatedAt: new Date().toISOString(),
-          }, {
-            onConflict: 'id',
-          });
+      // If RPC function doesn't exist, try manual sync
+      if (error.code === '42883' || error.code === 'PGRST202' || error.message?.includes('does not exist') || error.message?.includes('function')) {
+        console.warn('sync_users_from_auth function does not exist. Attempting manual sync...');
+        // Fallback: Try to get current user and sync manually
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { error: upsertError } = await supabase
+            .from('users')
+            .upsert({
+              id: user.id,
+              email: user.email || '',
+              firstName: user.user_metadata?.firstName || '',
+              lastName: user.user_metadata?.lastName || '',
+              role: user.user_metadata?.role || 'member',
+              isActive: true,
+              createdAt: user.created_at,
+              updatedAt: new Date().toISOString(),
+            }, {
+              onConflict: 'id',
+            });
+          
+          if (upsertError) {
+            throw new Error(`Failed to sync user: ${upsertError.message}. Please ensure the users table exists and run the migration.`);
+          }
+          return; // Successfully synced current user
+        }
+        throw new Error('No authenticated user found. Please log in first.');
       }
-      // Note: Full sync requires admin access or a database function
-      throw new Error('Full user sync requires database function. Please run the sync_users_from_auth function in Supabase SQL Editor or use the SQL provided in ADMIN_SETUP.md');
+      // Other errors
+      throw new Error(`Failed to sync users: ${error.message}. Please run the sync_users_from_auth function migration.`);
     }
   },
 
@@ -71,7 +88,13 @@ export const adminService = {
       .from('teams')
       .select('*')
       .order('name');
-    if (error) throw error;
+    if (error) {
+      if (error.code === '42P01' || error.code === 'PGRST202' || error.message?.includes('does not exist')) {
+        console.warn('Teams table does not exist. Please run the migration.');
+        return [];
+      }
+      throw error;
+    }
     return data || [];
   },
 
@@ -121,7 +144,13 @@ export const adminService = {
       .from('departments')
       .select('*')
       .order('name');
-    if (error) throw error;
+    if (error) {
+      if (error.code === '42P01' || error.code === 'PGRST202' || error.message?.includes('does not exist')) {
+        console.warn('Departments table does not exist. Please run the migration.');
+        return [];
+      }
+      throw error;
+    }
     return data || [];
   },
 
@@ -171,7 +200,13 @@ export const adminService = {
       .from('allowed_domains')
       .select('*')
       .order('domain');
-    if (error) throw error;
+    if (error) {
+      if (error.code === '42P01' || error.code === 'PGRST202' || error.message?.includes('does not exist')) {
+        console.warn('Allowed domains table does not exist. Please run the migration.');
+        return [];
+      }
+      throw error;
+    }
     return data || [];
   },
 
@@ -221,7 +256,13 @@ export const adminService = {
       .from('tags')
       .select('*')
       .order('name');
-    if (error) throw error;
+    if (error) {
+      if (error.code === '42P01' || error.code === 'PGRST202' || error.message?.includes('does not exist')) {
+        console.warn('Tags table does not exist. Please run the migration.');
+        return [];
+      }
+      throw error;
+    }
     return data || [];
   },
 

@@ -22,6 +22,7 @@ import { supabase } from '@/lib/supabase';
 import { Task, User, Tag } from '@/types';
 import { Plus, Search, Filter, Edit, Trash2, Calendar, Clock, ArrowUpDown, CheckCircle2, Circle, PlayCircle, User as UserIcon, FolderKanban, Play, Square, Tag as TagIcon } from 'lucide-react';
 import { format } from 'date-fns';
+import { TagSelector } from '@/components/TagSelector';
 
 export default function Tasks() {
   const navigate = useNavigate();
@@ -107,23 +108,56 @@ export default function Tasks() {
 
   const loadTaskTags = async () => {
     try {
-      const { data, error } = await supabase
+      // Try camelCase first, fallback to snake_case
+      let query = supabase
         .from('task_tags')
         .select('taskId, tagId, tags(*)');
-      if (error) throw error;
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        // If camelCase fails, try snake_case
+        if (error.code === '42703' || error.message?.includes('taskId') || error.message?.includes('taskid')) {
+          const { data: snakeData, error: snakeError } = await supabase
+            .from('task_tags')
+            .select('taskid, tagid, tags(*)');
+          
+          if (snakeError) {
+            console.error('Error loading task tags:', snakeError);
+            setTaskTags({});
+            return;
+          }
+          
+          const tagsByTask: Record<string, Tag[]> = {};
+          (snakeData || []).forEach((tt: any) => {
+            const taskId = tt.taskid || tt.taskId;
+            if (!tagsByTask[taskId]) {
+              tagsByTask[taskId] = [];
+            }
+            if (tt.tags) {
+              tagsByTask[taskId].push(tt.tags);
+            }
+          });
+          setTaskTags(tagsByTask);
+          return;
+        }
+        throw error;
+      }
       
       const tagsByTask: Record<string, Tag[]> = {};
       (data || []).forEach((tt: any) => {
-        if (!tagsByTask[tt.taskId]) {
-          tagsByTask[tt.taskId] = [];
+        const taskId = tt.taskId || tt.taskid;
+        if (!tagsByTask[taskId]) {
+          tagsByTask[taskId] = [];
         }
         if (tt.tags) {
-          tagsByTask[tt.taskId].push(tt.tags);
+          tagsByTask[taskId].push(tt.tags);
         }
       });
       setTaskTags(tagsByTask);
     } catch (error) {
       console.error('Error loading task tags:', error);
+      setTaskTags({});
     }
   };
 
@@ -193,11 +227,26 @@ export default function Tasks() {
 
       // Add tags to task
       if (taskForm.selectedTags.length > 0) {
-        const tagInserts = taskForm.selectedTags.map(tagId => ({
+        // Try camelCase first, fallback to snake_case
+        let tagInserts = taskForm.selectedTags.map(tagId => ({
           taskId: task.id,
           tagId,
         }));
-        await supabase.from('task_tags').insert(tagInserts);
+        let { error: tagError } = await supabase.from('task_tags').insert(tagInserts);
+        
+        if (tagError && (tagError.code === '42703' || tagError.message?.includes('taskId') || tagError.message?.includes('taskid'))) {
+          // Try snake_case
+          tagInserts = taskForm.selectedTags.map(tagId => ({
+            taskid: task.id,
+            tagid: tagId,
+          }));
+          const result = await supabase.from('task_tags').insert(tagInserts);
+          tagError = result.error;
+        }
+        
+        if (tagError && !tagError.message?.includes('does not exist')) {
+          console.error('Error inserting task tags:', tagError);
+        }
         await loadTaskTags();
       }
       
@@ -261,16 +310,33 @@ export default function Tasks() {
 
       if (error) throw error;
 
-      // Update tags
-      // Delete existing tags
-      await supabase.from('task_tags').delete().eq('taskId', editingTask.id);
+      // Update tags - try camelCase first, fallback to snake_case
+      let deleteResult = await supabase.from('task_tags').delete().eq('taskId', editingTask.id);
+      if (deleteResult.error && (deleteResult.error.code === '42703' || deleteResult.error.message?.includes('taskId'))) {
+        await supabase.from('task_tags').delete().eq('taskid', editingTask.id);
+      }
+      
       // Insert new tags
       if (taskForm.selectedTags.length > 0) {
-        const tagInserts = taskForm.selectedTags.map(tagId => ({
+        let tagInserts = taskForm.selectedTags.map(tagId => ({
           taskId: editingTask.id,
           tagId,
         }));
-        await supabase.from('task_tags').insert(tagInserts);
+        let { error: tagError } = await supabase.from('task_tags').insert(tagInserts);
+        
+        if (tagError && (tagError.code === '42703' || tagError.message?.includes('taskId') || tagError.message?.includes('taskid'))) {
+          // Try snake_case
+          tagInserts = taskForm.selectedTags.map(tagId => ({
+            taskid: editingTask.id,
+            tagid: tagId,
+          }));
+          const result = await supabase.from('task_tags').insert(tagInserts);
+          tagError = result.error;
+        }
+        
+        if (tagError && !tagError.message?.includes('does not exist')) {
+          console.error('Error inserting task tags:', tagError);
+        }
       }
       await loadTaskTags();
 
@@ -338,6 +404,7 @@ export default function Tasks() {
       try {
         await startTimer(task.id);
         await fetchTimeEntries();
+        await fetchTasks(); // Refresh tasks to show status change
         toast({
           title: 'Success',
           description: 'Timer started',
@@ -507,36 +574,11 @@ export default function Tasks() {
                       min={new Date().toISOString().split('T')[0]}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Tags</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {availableTags.map(tag => (
-                        <Button
-                          key={tag.id}
-                          type="button"
-                          variant={taskForm.selectedTags.includes(tag.id) ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => {
-                            if (taskForm.selectedTags.includes(tag.id)) {
-                              setTaskForm({
-                                ...taskForm,
-                                selectedTags: taskForm.selectedTags.filter(id => id !== tag.id),
-                              });
-                            } else {
-                              setTaskForm({
-                                ...taskForm,
-                                selectedTags: [...taskForm.selectedTags, tag.id],
-                              });
-                            }
-                          }}
-                          style={taskForm.selectedTags.includes(tag.id) ? { backgroundColor: tag.color, borderColor: tag.color } : {}}
-                        >
-                          <TagIcon className="h-3 w-3 mr-1" />
-                          {tag.name}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
+                  <TagSelector
+                    tags={availableTags}
+                    selectedTags={taskForm.selectedTags}
+                    onSelectionChange={(tagIds) => setTaskForm({ ...taskForm, selectedTags: tagIds })}
+                  />
                   <div className="flex justify-end gap-2">
                     <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                       Cancel
@@ -1044,36 +1086,11 @@ export default function Tasks() {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Tags</Label>
-                <div className="flex flex-wrap gap-2">
-                  {availableTags.map(tag => (
-                    <Button
-                      key={tag.id}
-                      type="button"
-                      variant={taskForm.selectedTags.includes(tag.id) ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => {
-                        if (taskForm.selectedTags.includes(tag.id)) {
-                          setTaskForm({
-                            ...taskForm,
-                            selectedTags: taskForm.selectedTags.filter(id => id !== tag.id),
-                          });
-                        } else {
-                          setTaskForm({
-                            ...taskForm,
-                            selectedTags: [...taskForm.selectedTags, tag.id],
-                          });
-                        }
-                      }}
-                      style={taskForm.selectedTags.includes(tag.id) ? { backgroundColor: tag.color, borderColor: tag.color } : {}}
-                    >
-                      <TagIcon className="h-3 w-3 mr-1" />
-                      {tag.name}
-                    </Button>
-                  ))}
-                </div>
-              </div>
+              <TagSelector
+                tags={availableTags}
+                selectedTags={taskForm.selectedTags}
+                onSelectionChange={(tagIds) => setTaskForm({ ...taskForm, selectedTags: tagIds })}
+              />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                   Cancel

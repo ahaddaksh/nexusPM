@@ -24,7 +24,7 @@ export default function Navigation() {
     { path: '/timesheet', label: 'Timesheet', icon: Clock },
     { path: '/meetings', label: 'Meetings', icon: Sparkles },
     { path: '/meeting-processor', label: 'Process Meeting', icon: Sparkles },
-    ...(user?.role === 'admin' ? [{ path: '/admin', label: 'Admin', icon: Shield }] : []),
+    ...(user?.role === 'admin' || user?.role === 'manager' ? [{ path: '/admin', label: 'Admin', icon: Shield }] : []),
   ];
 
   const isActive = (path: string) => location.pathname === path;

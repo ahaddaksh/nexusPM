@@ -18,6 +18,7 @@ import { useTimeTracking } from '@/hooks/useTimeTracking';
 import { useToast } from '@/components/ui/use-toast';
 import { usersService } from '@/lib/users-service';
 import { Task, Project, User, Tag } from '@/types';
+import { TagSelector } from '@/components/TagSelector';
 import { 
   Play, 
   Clock, 
@@ -35,7 +36,8 @@ import {
   Tag as TagIcon,
   Users,
   Target,
-  ArrowLeft
+  ArrowLeft,
+  Square
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -112,28 +114,68 @@ export default function ProjectDetail() {
 
   const loadTags = async () => {
     try {
-      const { data, error } = await (await import('@/lib/supabase')).supabase
+      const { supabase } = await import('@/lib/supabase');
+      const { data, error } = await supabase
         .from('tags')
         .select('*')
         .order('name');
-      if (error) throw error;
+      if (error) {
+        // If table doesn't exist, just set empty array
+        if (error.code === '42P01' || error.code === 'PGRST202' || error.message?.includes('does not exist')) {
+          setAvailableTags([]);
+          return;
+        }
+        throw error;
+      }
       setAvailableTags(data || []);
     } catch (error) {
       console.error('Error loading tags:', error);
+      setAvailableTags([]);
     }
   };
 
   const loadProjectTags = async () => {
     if (!id) return;
     try {
-      const { data, error } = await (await import('@/lib/supabase')).supabase
+      const { supabase } = await import('@/lib/supabase');
+      // Try camelCase first, fallback to snake_case
+      let { data, error } = await supabase
         .from('project_tags')
         .select('tagId, tags(*)')
         .eq('projectId', id);
-      if (error) throw error;
+      
+      if (error) {
+        // If camelCase fails, try snake_case
+        if (error.code === '42703' || error.message?.includes('projectId') || error.message?.includes('projectid')) {
+          const result = await supabase
+            .from('project_tags')
+            .select('tagid, tags(*)')
+            .eq('projectid', id);
+          
+          if (result.error) {
+            // If table doesn't exist, just set empty array
+            if (result.error.code === '42P01' || result.error.code === 'PGRST202' || result.error.message?.includes('does not exist')) {
+              setProjectTags([]);
+              return;
+            }
+            console.error('Error loading project tags:', result.error);
+            setProjectTags([]);
+            return;
+          }
+          
+          data = result.data;
+        } else if (error.code === '42P01' || error.code === 'PGRST202' || error.message?.includes('does not exist')) {
+          setProjectTags([]);
+          return;
+        } else {
+          throw error;
+        }
+      }
+      
       setProjectTags((data || []).map((pt: any) => pt.tags).filter(Boolean));
     } catch (error) {
       console.error('Error loading project tags:', error);
+      setProjectTags([]);
     }
   };
 
@@ -203,11 +245,26 @@ export default function ProjectDetail() {
       // Add tags to task
       if (taskForm.selectedTags.length > 0) {
         const { supabase } = await import('@/lib/supabase');
-        const tagInserts = taskForm.selectedTags.map(tagId => ({
+        // Try camelCase first, fallback to snake_case
+        let tagInserts = taskForm.selectedTags.map(tagId => ({
           taskId: task.id,
           tagId,
         }));
-        await supabase.from('task_tags').insert(tagInserts);
+        let { error: tagError } = await supabase.from('task_tags').insert(tagInserts);
+        
+        if (tagError && (tagError.code === '42703' || tagError.message?.includes('taskId') || tagError.message?.includes('taskid'))) {
+          // Try snake_case
+          tagInserts = taskForm.selectedTags.map(tagId => ({
+            taskid: task.id,
+            tagid: tagId,
+          }));
+          const result = await supabase.from('task_tags').insert(tagInserts);
+          tagError = result.error;
+        }
+        
+        if (tagError && !tagError.message?.includes('does not exist')) {
+          console.error('Error inserting task tags:', tagError);
+        }
       }
 
       setTaskForm({
@@ -250,6 +307,7 @@ export default function ProjectDetail() {
       }
       await startTimer(taskId);
       await fetchTimeEntries();
+      await fetchTasks(); // Refresh tasks to show status change
       toast({
         title: 'Success',
         description: 'Timer started',
@@ -421,13 +479,13 @@ export default function ProjectDetail() {
                   <div>
                     <Label className="text-xs text-muted-foreground">Start Date</Label>
                     <p className="text-sm font-medium mt-1">
-                      {format(new Date(currentProject.startDate), 'MMM dd, yyyy')}
+                      {currentProject.startDate ? format(new Date(currentProject.startDate), 'MMM dd, yyyy') : 'Not set'}
                     </p>
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">End Date</Label>
                     <p className="text-sm font-medium mt-1">
-                      {format(new Date(currentProject.endDate), 'MMM dd, yyyy')}
+                      {currentProject.endDate ? format(new Date(currentProject.endDate), 'MMM dd, yyyy') : 'Not set'}
                     </p>
                   </div>
                   <div>
@@ -525,13 +583,13 @@ export default function ProjectDetail() {
                       <div>
                         <Label className="text-xs text-muted-foreground">Start Date</Label>
                         <p className="text-sm font-medium mt-1">
-                          {format(new Date(currentProject.startDate), 'MMMM dd, yyyy')}
+                          {currentProject.startDate ? format(new Date(currentProject.startDate), 'MMMM dd, yyyy') : 'Not set'}
                         </p>
                       </div>
                       <div>
                         <Label className="text-xs text-muted-foreground">End Date</Label>
                         <p className="text-sm font-medium mt-1">
-                          {format(new Date(currentProject.endDate), 'MMMM dd, yyyy')}
+                          {currentProject.endDate ? format(new Date(currentProject.endDate), 'MMMM dd, yyyy') : 'Not set'}
                         </p>
                       </div>
                     </div>
@@ -689,35 +747,11 @@ export default function ProjectDetail() {
                         />
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Tags</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {availableTags.map(tag => (
-                          <Button
-                            key={tag.id}
-                            variant={taskForm.selectedTags.includes(tag.id) ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => {
-                              if (taskForm.selectedTags.includes(tag.id)) {
-                                setTaskForm({
-                                  ...taskForm,
-                                  selectedTags: taskForm.selectedTags.filter(id => id !== tag.id),
-                                });
-                              } else {
-                                setTaskForm({
-                                  ...taskForm,
-                                  selectedTags: [...taskForm.selectedTags, tag.id],
-                                });
-                              }
-                            }}
-                            style={taskForm.selectedTags.includes(tag.id) ? { backgroundColor: tag.color, borderColor: tag.color } : {}}
-                          >
-                            <TagIcon className="h-3 w-3 mr-1" />
-                            {tag.name}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
+                    <TagSelector
+                      tags={availableTags}
+                      selectedTags={taskForm.selectedTags}
+                      onSelectionChange={(tagIds) => setTaskForm({ ...taskForm, selectedTags: tagIds })}
+                    />
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
@@ -931,10 +965,10 @@ export default function ProjectDetail() {
       </div>
     </AppLayout>
   );
+}
 
-  function formatDuration(minutes: number) {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
-  }
+function formatDuration(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours}h ${mins}m`;
 }

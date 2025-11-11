@@ -40,8 +40,10 @@ export const useAuth = () => {
 
       // Supabase returns { data, error } format
       if (result && result.error) {
-        // If it's a 500 error or RLS error, try using RPC function as fallback
-        if (result.error.code === 'PGRST301' || result.error.status === 500 || result.error.message?.includes('500')) {
+        // If it's a 500 error, RLS error, or 404 (table doesn't exist), try using RPC function as fallback
+        if (result.error.code === 'PGRST301' || result.error.status === 500 || result.error.code === 'PGRST202' || 
+            result.error.message?.includes('500') || result.error.message?.includes('NOT_FOUND') ||
+            result.error.message?.includes('does not exist')) {
           try {
             // Try to get role via RPC function (bypasses RLS)
             const { data: roleData, error: rpcError } = await supabase.rpc('get_current_user_role');
@@ -52,7 +54,7 @@ export const useAuth = () => {
               };
             }
           } catch (rpcError) {
-            // Ignore RPC errors
+            // Ignore RPC errors - table or function might not exist
           }
         }
         // If query failed, return fallback

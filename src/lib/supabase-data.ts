@@ -154,6 +154,20 @@ export const timeTrackingService = {
       await this.stopTimer(otherActiveTimer.id);
     }
 
+    // Automatically set task status to "in_progress" when timer starts
+    const { error: taskUpdateError } = await supabase
+      .from('tasks')
+      .update({ 
+        status: 'in_progress',
+        updatedAt: new Date().toISOString(),
+      })
+      .eq('id', taskId);
+    
+    // Don't throw if task update fails - timer should still start
+    if (taskUpdateError) {
+      console.warn('Failed to update task status to in_progress:', taskUpdateError);
+    }
+
     const { data: timeEntry, error } = await supabase
       .from('time_entries')
       .insert({
