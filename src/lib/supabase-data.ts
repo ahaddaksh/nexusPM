@@ -137,8 +137,8 @@ export const timeTrackingService = {
       .maybeSingle();
 
     if (existingTimer) {
-      // Timer already running for this task
-      return existingTimer;
+      // Timer already running for this task - prevent duplicate timers
+      throw new Error('A timer is already running for this task. Please stop the existing timer first.');
     }
 
     // Check if there's an active timer for a different task
@@ -271,6 +271,84 @@ export const timeTrackingService = {
     }
 
     return data || null;
+  },
+
+  async updateTimeEntry(
+    timeEntryId: string,
+    updates: {
+      startTime?: string;
+      endTime?: string;
+      durationMinutes?: number;
+      description?: string;
+      billable?: boolean;
+    }
+  ): Promise<TimeEntry> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Recalculate duration if start/end times are updated
+    let finalDuration = updates.durationMinutes;
+    if (updates.startTime || updates.endTime) {
+      const { data: existingEntry } = await supabase
+        .from('time_entries')
+        .select('startTime, endTime')
+        .eq('id', timeEntryId)
+        .single();
+
+      if (existingEntry) {
+        const startTime = new Date(updates.startTime || existingEntry.startTime);
+        const endTime = new Date(updates.endTime || existingEntry.endTime);
+        finalDuration = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+        
+        if (finalDuration <= 0) {
+          throw new Error('End time must be after start time');
+        }
+      }
+    }
+
+    const { data: updated, error } = await supabase
+      .from('time_entries')
+      .update({
+        ...updates,
+        durationMinutes: finalDuration,
+      })
+      .eq('id', timeEntryId)
+      .eq('userId', user.id) // Ensure user can only update their own entries
+      .select()
+      .single();
+
+    if (error) throw error;
+    return updated;
+  },
+
+  async deleteTimeEntry(timeEntryId: string): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Check if this is an active timer (no endTime)
+    const { data: entry } = await supabase
+      .from('time_entries')
+      .select('endTime')
+      .eq('id', timeEntryId)
+      .eq('userId', user.id)
+      .single();
+
+    if (!entry) {
+      throw new Error('Time entry not found or you do not have permission to delete it');
+    }
+
+    // Don't allow deleting active timers - they should be stopped first
+    if (!entry.endTime) {
+      throw new Error('Cannot delete an active timer. Please stop it first.');
+    }
+
+    const { error } = await supabase
+      .from('time_entries')
+      .delete()
+      .eq('id', timeEntryId)
+      .eq('userId', user.id); // Ensure user can only delete their own entries
+
+    if (error) throw error;
   },
 };
 

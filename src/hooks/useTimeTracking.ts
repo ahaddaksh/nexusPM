@@ -94,6 +94,48 @@ export const useTimeTracking = () => {
     return activeTimer;
   }, [activeTimer]);
 
+  const updateTimeEntry = useCallback(async (
+    timeEntryId: string,
+    updates: {
+      startTime?: string;
+      endTime?: string;
+      durationMinutes?: number;
+      description?: string;
+      billable?: boolean;
+    }
+  ) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const updated = await timeTrackingService.updateTimeEntry(timeEntryId, updates);
+      setTimeEntries(prev => prev.map(entry => entry.id === timeEntryId ? updated : entry));
+      return updated;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update time entry');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const deleteTimeEntry = useCallback(async (timeEntryId: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await timeTrackingService.deleteTimeEntry(timeEntryId);
+      setTimeEntries(prev => prev.filter(entry => entry.id !== timeEntryId));
+      // If deleted entry was the active timer, clear it
+      if (activeTimer?.id === timeEntryId) {
+        setActiveTimer(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete time entry');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeTimer]);
+
   return {
     timeEntries,
     activeTimer,
@@ -103,6 +145,8 @@ export const useTimeTracking = () => {
     startTimer,
     stopTimer,
     createTimeEntry,
+    updateTimeEntry,
+    deleteTimeEntry,
     getActiveTimer,
   };
 };

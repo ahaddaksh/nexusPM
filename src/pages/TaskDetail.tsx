@@ -18,7 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/ui/use-toast';
 import { usersService } from '@/lib/users-service';
 import { supabase } from '@/lib/supabase';
-import { Task, User, TaskAttachment } from '@/types';
+import { Task, User, TaskAttachment, TimeEntry } from '@/types';
 import { 
   Calendar, 
   Clock, 
@@ -46,7 +46,7 @@ export default function TaskDetail() {
   const { user: currentUser } = useAuth();
   const { tasks, fetchTasks, updateTaskStatus } = useTasks();
   const { projects, fetchProjects } = useProjects();
-  const { activeTimer, startTimer, stopTimer, timeEntries, fetchTimeEntries, createTimeEntry } = useTimeTracking();
+  const { activeTimer, startTimer, stopTimer, timeEntries, fetchTimeEntries, createTimeEntry, updateTimeEntry, deleteTimeEntry } = useTimeTracking();
   const { toast } = useToast();
 
   const [task, setTask] = useState<Task | null>(null);
@@ -73,6 +73,13 @@ export default function TaskDetail() {
   const [pendingStatusChange, setPendingStatusChange] = useState<Task['status'] | null>(null);
   const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [editingTimeEntry, setEditingTimeEntry] = useState<TimeEntry | null>(null);
+  const [editTimeEntryForm, setEditTimeEntryForm] = useState({
+    startTime: '',
+    endTime: '',
+    description: '',
+    billable: false,
+  });
 
   useEffect(() => {
     if (id) {
@@ -388,9 +395,18 @@ export default function TaskDetail() {
           description: 'Timer started',
         });
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to start timer';
+        // Check if it's a duplicate timer error
+        if (errorMessage.includes('already running')) {
+          // Refresh the timer state to show the active timer
+          await fetchTimeEntries();
+          if (id) {
+            await loadTask();
+          }
+        }
         toast({
           title: 'Error',
-          description: error instanceof Error ? error.message : 'Failed to start timer',
+          description: errorMessage,
           variant: 'destructive',
         });
       }
@@ -771,8 +787,8 @@ export default function TaskDetail() {
                       <p className="text-sm text-muted-foreground">No time entries yet</p>
                     ) : (
                       taskTimeEntries.map((entry) => (
-                        <div key={entry.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <div>
+                        <div key={entry.id} className="flex items-center justify-between p-2 bg-gray-50 rounded group">
+                          <div className="flex-1">
                             <p className="text-sm">
                               {entry.startTime && format(new Date(entry.startTime), 'MMM dd, h:mm a')}
                               {entry.endTime && ` - ${format(new Date(entry.endTime), 'h:mm a')}`}
@@ -781,8 +797,53 @@ export default function TaskDetail() {
                               <p className="text-xs text-muted-foreground">{entry.description}</p>
                             )}
                           </div>
-                          <div className="text-sm font-medium">
-                            {Math.floor((entry.durationMinutes || 0) / 60)}h {(entry.durationMinutes || 0) % 60}m
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-medium">
+                              {Math.floor((entry.durationMinutes || 0) / 60)}h {(entry.durationMinutes || 0) % 60}m
+                            </div>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingTimeEntry(entry);
+                                  setEditTimeEntryForm({
+                                    startTime: entry.startTime ? new Date(entry.startTime).toISOString().slice(0, 16) : '',
+                                    endTime: entry.endTime ? new Date(entry.endTime).toISOString().slice(0, 16) : '',
+                                    description: entry.description || '',
+                                    billable: entry.billable || false,
+                                  });
+                                }}
+                                className="h-7 w-7 p-0"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={async () => {
+                                  if (confirm('Are you sure you want to delete this time entry?')) {
+                                    try {
+                                      await deleteTimeEntry(entry.id);
+                                      await fetchTimeEntries();
+                                      toast({
+                                        title: 'Success',
+                                        description: 'Time entry deleted',
+                                      });
+                                    } catch (error) {
+                                      toast({
+                                        title: 'Error',
+                                        description: error instanceof Error ? error.message : 'Failed to delete time entry',
+                                        variant: 'destructive',
+                                      });
+                                    }
+                                  }
+                                }}
+                                className="h-7 w-7 p-0 text-red-600 hover:text-red-700"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       ))
@@ -1005,6 +1066,103 @@ export default function TaskDetail() {
               </Button>
               <Button onClick={handleManualEntry}>
                 Add Time Entry
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Time Entry Dialog */}
+      <Dialog open={!!editingTimeEntry} onOpenChange={(open) => !open && setEditingTimeEntry(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Time Entry</DialogTitle>
+            <DialogDescription>
+              Update the start time, end time, and other details for this time entry
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-start-time">Start Time</Label>
+              <Input
+                id="edit-start-time"
+                type="datetime-local"
+                value={editTimeEntryForm.startTime}
+                onChange={(e) => setEditTimeEntryForm({ ...editTimeEntryForm, startTime: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-end-time">End Time</Label>
+              <Input
+                id="edit-end-time"
+                type="datetime-local"
+                value={editTimeEntryForm.endTime}
+                onChange={(e) => setEditTimeEntryForm({ ...editTimeEntryForm, endTime: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                value={editTimeEntryForm.description}
+                onChange={(e) => setEditTimeEntryForm({ ...editTimeEntryForm, description: e.target.value })}
+                placeholder="What did you work on?"
+                rows={3}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="edit-billable"
+                checked={editTimeEntryForm.billable}
+                onChange={(e) => setEditTimeEntryForm({ ...editTimeEntryForm, billable: e.target.checked })}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <Label htmlFor="edit-billable" className="cursor-pointer">Billable</Label>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditingTimeEntry(null)}>
+                Cancel
+              </Button>
+              <Button onClick={async () => {
+                if (!editingTimeEntry) return;
+                
+                const start = new Date(editTimeEntryForm.startTime);
+                const end = new Date(editTimeEntryForm.endTime);
+                const durationMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+
+                if (durationMinutes <= 0) {
+                  toast({
+                    title: 'Error',
+                    description: 'End time must be after start time',
+                    variant: 'destructive',
+                  });
+                  return;
+                }
+
+                try {
+                  await updateTimeEntry(editingTimeEntry.id, {
+                    startTime: start.toISOString(),
+                    endTime: end.toISOString(),
+                    durationMinutes,
+                    description: editTimeEntryForm.description,
+                    billable: editTimeEntryForm.billable,
+                  });
+                  await fetchTimeEntries();
+                  setEditingTimeEntry(null);
+                  toast({
+                    title: 'Success',
+                    description: 'Time entry updated',
+                  });
+                } catch (error) {
+                  toast({
+                    title: 'Error',
+                    description: error instanceof Error ? error.message : 'Failed to update time entry',
+                    variant: 'destructive',
+                  });
+                }
+              }}>
+                Save Changes
               </Button>
             </div>
           </div>
