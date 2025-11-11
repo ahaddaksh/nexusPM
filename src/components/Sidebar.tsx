@@ -79,13 +79,15 @@ export default function Sidebar() {
               Process Meeting
             </Button>
           </Link>
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 h-11 text-gray-300 hover:text-white hover:bg-gray-800"
-          >
-            <Settings className="h-5 w-5" />
-            Settings
-          </Button>
+          <Link to="/settings">
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3 h-11 text-gray-300 hover:text-white hover:bg-gray-800"
+            >
+              <Settings className="h-5 w-5" />
+              Settings
+            </Button>
+          </Link>
           <div className="pt-2 border-t border-gray-800">
             <div className="px-3 py-2 text-sm text-gray-400">
               {user?.firstName} {user?.lastName}

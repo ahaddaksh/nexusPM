@@ -84,12 +84,27 @@ export const useAuth = () => {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      setUser({
+        id: session.user.id,
+        email: session.user.email!,
+        firstName: session.user.user_metadata?.firstName || '',
+        lastName: session.user.user_metadata?.lastName || '',
+        role: session.user.user_metadata?.role || 'member',
+        createdAt: session.user.created_at,
+      });
+    }
+  };
+
   return {
     user,
     isLoading,
     login,
     register,
     logout,
+    refreshUser,
     isAuthenticated: !!user,
   };
 };
