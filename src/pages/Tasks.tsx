@@ -709,7 +709,7 @@ export default function Tasks() {
         {!isLoading && !tasksError && (
           <>
             {/* Summary Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
@@ -718,6 +718,19 @@ export default function Tasks() {
                       <p className="text-2xl font-bold">{tasks.length}</p>
                     </div>
                     <Circle className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Todo</p>
+                      <p className="text-2xl font-bold text-gray-600">
+                        {tasks.filter(t => t.status === 'todo').length}
+                      </p>
+                    </div>
+                    <Circle className="h-8 w-8 text-gray-600" />
                   </div>
                 </CardContent>
               </Card>
@@ -754,6 +767,12 @@ export default function Tasks() {
                       <p className="text-sm text-muted-foreground">Overdue</p>
                       <p className="text-2xl font-bold text-red-600">
                         {tasks.filter(t => isOverdue(t.dueDate) && t.status !== 'completed').length}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {(() => {
+                          const overdueInProgress = tasks.filter(t => isOverdue(t.dueDate) && t.status === 'in_progress').length;
+                          return overdueInProgress > 0 ? `(${overdueInProgress} in progress)` : '';
+                        })()}
                       </p>
                     </div>
                     <Calendar className="h-8 w-8 text-red-600" />
@@ -797,8 +816,10 @@ export default function Tasks() {
                   const taskTimeEntries = timeEntries.filter(entry => entry.taskId === task.id);
                   const totalTime = taskTimeEntries.reduce((total, entry) => total + (entry.durationMinutes || 0), 0);
                   const progressPercentage = task.estimatedHours > 0 
-                    ? Math.min(100, (totalTime / (task.estimatedHours * 60)) * 100)
+                    ? (totalTime / (task.estimatedHours * 60)) * 100
                     : 0;
+                  const hasExceededEstimate = progressPercentage > 100;
+                  const hasExceeded120Percent = progressPercentage > 120;
                   const isTaskTimerActive = activeTimer?.taskId === task.id;
                   const currentTaskTags = taskTags[task.id] || [];
                   
@@ -912,22 +933,44 @@ export default function Tasks() {
                               )}
                             </div>
                             {task.estimatedHours > 0 && (
-                              <span className="text-muted-foreground">
+                              <span className={`font-medium ${
+                                hasExceeded120Percent ? 'text-red-600' :
+                                hasExceededEstimate ? 'text-orange-600' :
+                                'text-muted-foreground'
+                              }`}>
                                 {progressPercentage.toFixed(0)}%
                               </span>
                             )}
                           </div>
                           {task.estimatedHours > 0 && (
-                            <div className="w-full bg-gray-200 rounded-full h-1.5">
-                              <div
-                                className={`h-1.5 rounded-full ${
-                                  progressPercentage >= 100 ? 'bg-red-500' :
-                                  progressPercentage >= 80 ? 'bg-yellow-500' :
-                                  'bg-blue-500'
-                                }`}
-                                style={{ width: `${Math.min(100, progressPercentage)}%` }}
-                              />
-                            </div>
+                            <>
+                              <div className="w-full bg-gray-200 rounded-full h-1.5 relative">
+                                <div
+                                  className={`h-1.5 rounded-full ${
+                                    hasExceeded120Percent ? 'bg-red-600' :
+                                    hasExceededEstimate ? 'bg-orange-500' :
+                                    progressPercentage >= 80 ? 'bg-yellow-500' :
+                                    'bg-blue-500'
+                                  }`}
+                                  style={{ width: `${Math.min(100, progressPercentage)}%` }}
+                                />
+                                {hasExceededEstimate && (
+                                  <div
+                                    className="absolute top-0 left-0 h-1.5 bg-red-600 rounded-full"
+                                    style={{ width: `${Math.min(100, (progressPercentage - 100) / 2)}%`, left: '100%' }}
+                                  />
+                                )}
+                              </div>
+                              {hasExceededEstimate && (
+                                <p className={`text-xs ${
+                                  hasExceeded120Percent ? 'text-red-600 font-semibold' : 'text-orange-600'
+                                }`}>
+                                  {hasExceeded120Percent 
+                                    ? '⚠️ This task exceeded the estimate by over 120%. Planning should be refined.'
+                                    : '⚠️ This task exceeded the estimate.'}
+                                </p>
+                              )}
+                            </>
                           )}
                         </div>
 

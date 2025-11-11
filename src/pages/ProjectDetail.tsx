@@ -1047,8 +1047,10 @@ export default function ProjectDetail() {
                   const taskTimeEntries = timeEntries.filter(entry => entry.taskId === task.id);
                   const totalTime = taskTimeEntries.reduce((total, entry) => total + (entry.durationMinutes || 0), 0);
                   const progressPercentage = task.estimatedHours > 0 
-                    ? Math.min(100, (totalTime / (task.estimatedHours * 60)) * 100)
+                    ? (totalTime / (task.estimatedHours * 60)) * 100
                     : 0;
+                  const hasExceededEstimate = progressPercentage > 100;
+                  const hasExceeded120Percent = progressPercentage > 120;
                   const isTaskTimerActive = activeTimer?.taskId === task.id;
                   
                   return (
@@ -1123,18 +1125,44 @@ export default function ProjectDetail() {
                           <div className="space-y-1">
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-muted-foreground">Progress</span>
-                              <span className="font-medium">{Math.round(progressPercentage)}%</span>
+                              <span className={`font-medium ${
+                                hasExceeded120Percent ? 'text-red-600' :
+                                hasExceededEstimate ? 'text-orange-600' :
+                                ''
+                              }`}>
+                                {Math.round(progressPercentage)}%
+                              </span>
                             </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div className="w-full bg-gray-200 rounded-full h-2 relative">
                               <div
-                                className="bg-blue-600 h-2 rounded-full transition-all"
-                                style={{ width: `${progressPercentage}%` }}
+                                className={`h-2 rounded-full transition-all ${
+                                  hasExceeded120Percent ? 'bg-red-600' :
+                                  hasExceededEstimate ? 'bg-orange-500' :
+                                  progressPercentage >= 80 ? 'bg-yellow-500' :
+                                  'bg-blue-600'
+                                }`}
+                                style={{ width: `${Math.min(100, progressPercentage)}%` }}
                               />
+                              {hasExceededEstimate && (
+                                <div
+                                  className="absolute top-0 left-0 h-2 bg-red-600 rounded-full"
+                                  style={{ width: `${Math.min(100, (progressPercentage - 100) / 2)}%`, left: '100%' }}
+                                />
+                              )}
                             </div>
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
                               <span>{formatDuration(totalTime)}</span>
                               <span>{task.estimatedHours}h estimated</span>
                             </div>
+                            {hasExceededEstimate && (
+                              <p className={`text-xs ${
+                                hasExceeded120Percent ? 'text-red-600 font-semibold' : 'text-orange-600'
+                              }`}>
+                                {hasExceeded120Percent 
+                                  ? '⚠️ This task exceeded the estimate by over 120%. Planning should be refined.'
+                                  : '⚠️ This task exceeded the estimate.'}
+                              </p>
+                            )}
                     </div>
                         )}
 

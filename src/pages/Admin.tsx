@@ -68,11 +68,16 @@ export default function Admin() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Admin Panel</h1>
           <p className="text-gray-600">Manage users, teams, departments, and system settings</p>
+          {user && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Logged in as: {user.firstName} {user.lastName} ({user.email}) - Role: <strong>{user.role}</strong>
+            </p>
+          )}
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="users">
+            <TabsTrigger value="users" className="font-semibold">
               <Users className="h-4 w-4 mr-2" />
               Users
             </TabsTrigger>
