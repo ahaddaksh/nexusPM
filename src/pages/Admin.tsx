@@ -23,11 +23,12 @@ import {
   Plus,
   Edit,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  RefreshCw,
+  Settings
 } from 'lucide-react';
 import { User, Department, Team, AllowedDomain, Tag } from '@/types';
 import { adminService } from '@/lib/admin-service';
-import { RefreshCw, Settings, AlertCircle } from 'lucide-react';
 
 export default function Admin() {
   const { user, refreshUser } = useAuth();
@@ -568,46 +569,766 @@ function UsersManagement() {
   );
 }
 
-// Teams Management Component (placeholder)
+// Teams Management Component
 function TeamsManagement() {
+  const { toast } = useToast();
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    departmentId: '',
+    teamLeadId: '',
+  });
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [teamsResult, departmentsResult, usersResult] = await Promise.allSettled([
+        adminService.getTeams(),
+        adminService.getDepartments(),
+        adminService.getUsers(),
+      ]);
+
+      if (teamsResult.status === 'fulfilled') {
+        setTeams(teamsResult.value);
+      } else {
+        console.error('Error loading teams:', teamsResult.reason);
+        setTeams([]);
+      }
+
+      if (departmentsResult.status === 'fulfilled') {
+        setDepartments(departmentsResult.value);
+      } else {
+        setDepartments([]);
+      }
+
+      if (usersResult.status === 'fulfilled') {
+        setUsers(usersResult.value);
+      } else {
+        setUsers([]);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to load data',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!formData.name) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a team name',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      if (editingTeam) {
+        await adminService.updateTeam(editingTeam.id, {
+          ...formData,
+          departmentId: formData.departmentId || undefined,
+          teamLeadId: formData.teamLeadId || undefined,
+        });
+        toast({
+          title: 'Success',
+          description: 'Team updated',
+        });
+      } else {
+        await adminService.createTeam({
+          ...formData,
+          departmentId: formData.departmentId || undefined,
+          teamLeadId: formData.teamLeadId || undefined,
+        });
+        toast({
+          title: 'Success',
+          description: 'Team created',
+        });
+      }
+      setIsDialogOpen(false);
+      setEditingTeam(null);
+      loadData();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to save team',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this team?')) return;
+
+    try {
+      await adminService.deleteTeam(id);
+      toast({
+        title: 'Success',
+        description: 'Team deleted',
+      });
+      loadData();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to delete team',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  if (isLoading) {
+    return <div className="text-center py-12">Loading...</div>;
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Teams</CardTitle>
-        <CardDescription>Manage teams and team assignments</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Teams</CardTitle>
+            <CardDescription>Manage teams and team assignments</CardDescription>
+          </div>
+          <Button onClick={() => { setEditingTeam(null); setFormData({ name: '', description: '', departmentId: '', teamLeadId: '' }); setIsDialogOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Team
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground">Teams management coming soon...</p>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>Department</TableHead>
+              <TableHead>Team Lead</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {teams.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  No teams found. Click "Add Team" to create one.
+                </TableCell>
+              </TableRow>
+            ) : (
+              teams.map((team) => (
+                <TableRow key={team.id}>
+                  <TableCell className="font-medium">{team.name}</TableCell>
+                  <TableCell>{team.description || '-'}</TableCell>
+                  <TableCell>
+                    {team.departmentId ? departments.find(d => d.id === team.departmentId)?.name || '-' : '-'}
+                  </TableCell>
+                  <TableCell>
+                    {team.teamLeadId ? users.find(u => u.id === team.teamLeadId)?.firstName + ' ' + users.find(u => u.id === team.teamLeadId)?.lastName || '-' : '-'}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditingTeam(team);
+                          setFormData({
+                            name: team.name,
+                            description: team.description || '',
+                            departmentId: team.departmentId || '',
+                            teamLeadId: team.teamLeadId || '',
+                          });
+                          setIsDialogOpen(true);
+                        }}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(team.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingTeam ? 'Edit Team' : 'Add Team'}</DialogTitle>
+              <DialogDescription>
+                {editingTeam ? 'Update team information' : 'Create a new team'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="teamName">Team Name *</Label>
+                <Input
+                  id="teamName"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="teamDescription">Description</Label>
+                <Textarea
+                  id="teamDescription"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="teamDepartment">Department</Label>
+                <Select
+                  value={formData.departmentId}
+                  onValueChange={(value) => setFormData({ ...formData, departmentId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No Department</SelectItem>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="teamLead">Team Lead</Label>
+                <Select
+                  value={formData.teamLeadId}
+                  onValueChange={(value) => setFormData({ ...formData, teamLeadId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select team lead" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No Team Lead</SelectItem>
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.firstName} {user.lastName} ({user.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave}>
+                {editingTeam ? 'Update' : 'Create'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
 }
 
-// Departments Management Component (placeholder)
+// Departments Management Component
 function DepartmentsManagement() {
+  const { toast } = useToast();
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+  });
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const departments = await adminService.getDepartments();
+      setDepartments(departments);
+    } catch (error) {
+      console.error('Error loading departments:', error);
+      setDepartments([]);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to load departments',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!formData.name) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a department name',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      if (editingDepartment) {
+        await adminService.updateDepartment(editingDepartment.id, formData);
+        toast({
+          title: 'Success',
+          description: 'Department updated',
+        });
+      } else {
+        await adminService.createDepartment(formData);
+        toast({
+          title: 'Success',
+          description: 'Department created',
+        });
+      }
+      setIsDialogOpen(false);
+      setEditingDepartment(null);
+      loadData();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to save department',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this department? This will also remove it from all teams.')) return;
+
+    try {
+      await adminService.deleteDepartment(id);
+      toast({
+        title: 'Success',
+        description: 'Department deleted',
+      });
+      loadData();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to delete department',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  if (isLoading) {
+    return <div className="text-center py-12">Loading...</div>;
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Departments</CardTitle>
-        <CardDescription>Manage departments and organizational structure</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Departments</CardTitle>
+            <CardDescription>Manage departments and organizational structure</CardDescription>
+          </div>
+          <Button onClick={() => { setEditingDepartment(null); setFormData({ name: '', description: '' }); setIsDialogOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Department
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground">Departments management coming soon...</p>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {departments.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                  No departments found. Click "Add Department" to create one.
+                </TableCell>
+              </TableRow>
+            ) : (
+              departments.map((dept) => (
+                <TableRow key={dept.id}>
+                  <TableCell className="font-medium">{dept.name}</TableCell>
+                  <TableCell>{dept.description || '-'}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditingDepartment(dept);
+                          setFormData({
+                            name: dept.name,
+                            description: dept.description || '',
+                          });
+                          setIsDialogOpen(true);
+                        }}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(dept.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingDepartment ? 'Edit Department' : 'Add Department'}</DialogTitle>
+              <DialogDescription>
+                {editingDepartment ? 'Update department information' : 'Create a new department'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="deptName">Department Name *</Label>
+                <Input
+                  id="deptName"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="deptDescription">Description</Label>
+                <Textarea
+                  id="deptDescription"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave}>
+                {editingDepartment ? 'Update' : 'Create'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
 }
 
-// Allowed Domains Management Component (placeholder)
+// Allowed Domains Management Component
 function AllowedDomainsManagement() {
+  const { toast } = useToast();
+  const [domains, setDomains] = useState<AllowedDomain[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingDomain, setEditingDomain] = useState<AllowedDomain | null>(null);
+  const [formData, setFormData] = useState({
+    domain: '',
+    autoAssignTeamId: '',
+    autoAssignDepartmentId: '',
+  });
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [domainsResult, teamsResult, departmentsResult] = await Promise.allSettled([
+        adminService.getAllowedDomains(),
+        adminService.getTeams(),
+        adminService.getDepartments(),
+      ]);
+
+      if (domainsResult.status === 'fulfilled') {
+        setDomains(domainsResult.value);
+      } else {
+        console.error('Error loading domains:', domainsResult.reason);
+        setDomains([]);
+      }
+
+      if (teamsResult.status === 'fulfilled') {
+        setTeams(teamsResult.value);
+      } else {
+        setTeams([]);
+      }
+
+      if (departmentsResult.status === 'fulfilled') {
+        setDepartments(departmentsResult.value);
+      } else {
+        setDepartments([]);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to load data',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!formData.domain) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a domain',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate domain format (basic check)
+    const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[a-zA-Z]{2,}$/;
+    if (!domainRegex.test(formData.domain)) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a valid domain (e.g., example.com)',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      if (editingDomain) {
+        await adminService.updateAllowedDomain(editingDomain.id, {
+          ...formData,
+          autoAssignTeamId: formData.autoAssignTeamId || undefined,
+          autoAssignDepartmentId: formData.autoAssignDepartmentId || undefined,
+        });
+        toast({
+          title: 'Success',
+          description: 'Domain updated',
+        });
+      } else {
+        await adminService.createAllowedDomain({
+          ...formData,
+          autoAssignTeamId: formData.autoAssignTeamId || undefined,
+          autoAssignDepartmentId: formData.autoAssignDepartmentId || undefined,
+        });
+        toast({
+          title: 'Success',
+          description: 'Domain added',
+        });
+      }
+      setIsDialogOpen(false);
+      setEditingDomain(null);
+      loadData();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to save domain',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to remove this allowed domain?')) return;
+
+    try {
+      await adminService.deleteAllowedDomain(id);
+      toast({
+        title: 'Success',
+        description: 'Domain removed',
+      });
+      loadData();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to delete domain',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  if (isLoading) {
+    return <div className="text-center py-12">Loading...</div>;
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Allowed Domains</CardTitle>
-        <CardDescription>Configure which email domains are allowed for self signup</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Allowed Domains</CardTitle>
+            <CardDescription>Configure which email domains are allowed for self signup</CardDescription>
+          </div>
+          <Button onClick={() => { setEditingDomain(null); setFormData({ domain: '', autoAssignTeamId: '', autoAssignDepartmentId: '' }); setIsDialogOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Domain
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground">Allowed domains management coming soon...</p>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Domain</TableHead>
+              <TableHead>Auto-Assign Team</TableHead>
+              <TableHead>Auto-Assign Department</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {domains.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                  No allowed domains configured. Click "Add Domain" to add one.
+                </TableCell>
+              </TableRow>
+            ) : (
+              domains.map((domain) => (
+                <TableRow key={domain.id}>
+                  <TableCell className="font-medium">{domain.domain}</TableCell>
+                  <TableCell>
+                    {domain.autoAssignTeamId ? teams.find(t => t.id === domain.autoAssignTeamId)?.name || '-' : '-'}
+                  </TableCell>
+                  <TableCell>
+                    {domain.autoAssignDepartmentId ? departments.find(d => d.id === domain.autoAssignDepartmentId)?.name || '-' : '-'}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditingDomain(domain);
+                          setFormData({
+                            domain: domain.domain,
+                            autoAssignTeamId: domain.autoAssignTeamId || '',
+                            autoAssignDepartmentId: domain.autoAssignDepartmentId || '',
+                          });
+                          setIsDialogOpen(true);
+                        }}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(domain.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingDomain ? 'Edit Allowed Domain' : 'Add Allowed Domain'}</DialogTitle>
+              <DialogDescription>
+                {editingDomain ? 'Update domain settings' : 'Add a new allowed domain for self signup'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="domain">Domain *</Label>
+                <Input
+                  id="domain"
+                  placeholder="example.com"
+                  value={formData.domain}
+                  onChange={(e) => setFormData({ ...formData, domain: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">Enter the domain without @ (e.g., example.com)</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="autoTeam">Auto-Assign Team (Optional)</Label>
+                <Select
+                  value={formData.autoAssignTeamId}
+                  onValueChange={(value) => setFormData({ ...formData, autoAssignTeamId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select team" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No Auto-Assignment</SelectItem>
+                    {teams.map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Users from this domain will be automatically assigned to this team</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="autoDept">Auto-Assign Department (Optional)</Label>
+                <Select
+                  value={formData.autoAssignDepartmentId}
+                  onValueChange={(value) => setFormData({ ...formData, autoAssignDepartmentId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No Auto-Assignment</SelectItem>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Users from this domain will be automatically assigned to this department</p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave}>
+                {editingDomain ? 'Update' : 'Add'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

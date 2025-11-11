@@ -18,18 +18,18 @@ export default function Navigation() {
   const location = useLocation();
   const { logout, user } = useAuth();
 
-  // Debug logging (remove in production)
-  useEffect(() => {
-    if (user) {
-      console.log('[Navigation] User role:', user.role, 'Full user object:', user);
-    } else {
-      console.log('[Navigation] No user found');
-    }
-  }, [user]);
-
   // Normalize role to lowercase for comparison (handles 'Admin', 'ADMIN', 'admin', etc.)
   const userRole = user?.role?.toLowerCase();
   const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
+
+  // Debug logging
+  useEffect(() => {
+    if (user) {
+      console.log('[Navigation] User role:', user.role, 'Normalized:', userRole, 'Is Admin/Manager:', isAdminOrManager);
+    } else {
+      console.log('[Navigation] No user found');
+    }
+  }, [user, userRole, isAdminOrManager]);
 
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },

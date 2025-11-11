@@ -10,7 +10,8 @@ import {
   LogOut,
   Settings,
   Menu,
-  X
+  X,
+  Shield
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
@@ -19,12 +20,17 @@ export default function Sidebar() {
   const location = useLocation();
   const { logout, user } = useAuth();
 
+  // Normalize role to lowercase for comparison
+  const userRole = user?.role?.toLowerCase();
+  const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
+
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/projects', label: 'Projects', icon: FolderKanban },
     { path: '/tasks', label: 'Tasks', icon: CheckSquare },
     { path: '/timesheet', label: 'Timesheet', icon: Clock },
     { path: '/meetings', label: 'Meetings', icon: Sparkles },
+    ...(isAdminOrManager ? [{ path: '/admin', label: 'Admin', icon: Shield }] : []),
   ];
 
   const isActive = (path: string) => {
