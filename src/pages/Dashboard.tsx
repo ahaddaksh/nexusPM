@@ -123,7 +123,13 @@ export default function Dashboard() {
           .maybeSingle();
         
         // If lowercase fails, try camelCase
-        if (weeklyResult.error && (weeklyResult.error.code === 'PGRST204' || weeklyResult.error.message?.includes('column'))) {
+        if (weeklyResult.error && (
+          weeklyResult.error.code === 'PGRST204' || 
+          weeklyResult.error.code === '42703' ||
+          weeklyResult.error.status === 400 ||
+          weeklyResult.error.message?.includes('column') ||
+          weeklyResult.error.message?.includes('does not exist')
+        )) {
           weeklyResult = await supabase
             .from('user_weekly_hours')
             .select('availableHours')

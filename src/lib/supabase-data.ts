@@ -11,7 +11,14 @@ export const projectsService = {
       .order('createdat', { ascending: false });
     
     // If lowercase fails, try camelCase
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    // Check for column-related errors: PGRST204, 400 status, or column name in error message
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       result = await supabase
         .from('projects')
         .select('id, name, description, status, startDate, endDate, createdBy, createdAt, updatedAt, purpose, resources')
@@ -19,7 +26,13 @@ export const projectsService = {
     }
     
     // If that also fails, try select('*')
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       result = await supabase
         .from('projects')
         .select('*')
@@ -67,7 +80,14 @@ export const projectsService = {
       .single();
     
     // If lowercase fails, try camelCase
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    // Check for column-related errors: PGRST204, 400 status, or column name in error message
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       const insertDataCamel = {
         name: data.name,
         description: data.description,
@@ -87,7 +107,13 @@ export const projectsService = {
     }
     
     // If that also fails, try select('*')
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       const insertDataCamel = {
         name: data.name,
         description: data.description,
@@ -134,7 +160,14 @@ export const projectsService = {
       .single();
     
     // If lowercase fails, try camelCase
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    // Check for column-related errors: PGRST204, 400 status, or column name in error message
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       result = await supabase
         .from('projects')
         .select('id, name, description, status, startDate, endDate, createdBy, createdAt, updatedAt, purpose, resources')
@@ -143,7 +176,13 @@ export const projectsService = {
     }
     
     // If that also fails, try select('*')
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       result = await supabase
         .from('projects')
         .select('*')
@@ -187,7 +226,14 @@ export const tasksService = {
     let result = await query;
     
     // If lowercase fails, try camelCase
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    // Check for column-related errors: PGRST204, 400 status, or column name in error message
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       query = supabase
         .from('tasks')
         .select('id, projectId, title, description, status, priority, estimatedHours, assignedTo, createdBy, dueDate, createdAt, updatedAt, meetingId, reviewerId')
@@ -201,7 +247,13 @@ export const tasksService = {
     }
     
     // If that also fails, try select('*')
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       query = supabase
         .from('tasks')
         .select('*')
@@ -261,7 +313,14 @@ export const tasksService = {
       .single();
     
     // If lowercase fails, try camelCase
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    // Check for column-related errors: PGRST204, 400 status, or column name in error message
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       const insertDataCamel = {
         projectId: data.projectId || null,
         title: data.title,
@@ -284,7 +343,13 @@ export const tasksService = {
     }
     
     // If that also fails, try select('*')
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       const insertDataCamel = {
         projectId: data.projectId || null,
         title: data.title,
@@ -343,7 +408,14 @@ export const tasksService = {
       .single();
     
     // If lowercase fails, try camelCase
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    // Check for column-related errors: PGRST204, 400 status, or column name in error message
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       const updateDataCamel = {
         status,
         updatedAt: new Date().toISOString(),
@@ -358,7 +430,13 @@ export const tasksService = {
     }
     
     // If that also fails, try select('*')
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       const updateDataCamel = {
         status,
         updatedAt: new Date().toISOString(),
@@ -683,7 +761,14 @@ export const meetingsService = {
       .order('createdat', { ascending: false });
     
     // If lowercase fails, try camelCase
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    // Check for column-related errors: PGRST204, 400 status, or column name in error message
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       result = await supabase
         .from('ai_suggestions')
         .select('id, meetingId, originalText, suggestedTask, suggestedDescription, confidenceScore, status, reviewedBy, reviewedAt, rejectionReason, createdAt')
@@ -692,7 +777,13 @@ export const meetingsService = {
     }
     
     // If that also fails, try select('*')
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       result = await supabase
         .from('ai_suggestions')
         .select('*')
@@ -703,19 +794,52 @@ export const meetingsService = {
     if (result.error) throw result.error;
     
     // Normalize the returned data
-    return (result.data || []).map((s: any) => ({
-      id: s.id,
-      meetingId: s.meetingId || s.meetingid || s.meeting_id,
-      originalText: s.originalText || s.originaltext || s.original_text,
-      suggestedTask: s.suggestedTask || s.suggestedtask || s.suggested_task,
-      suggestedDescription: s.suggestedDescription || s.suggesteddescription || s.suggested_description || null,
-      confidenceScore: s.confidenceScore || s.confidencescore || s.confidence_score,
-      status: s.status,
-      reviewedBy: s.reviewedBy || s.reviewedby || s.reviewed_by || null,
-      reviewedAt: s.reviewedAt || s.reviewedat || s.reviewed_at || null,
-      rejectionReason: s.rejectionReason || s.rejectionreason || s.rejection_reason || null,
-      createdAt: s.createdAt || s.createdat || s.created_at,
-    }));
+    // IMPORTANT: Map fields correctly - originalText should be the original text from meeting notes,
+    // suggestedDescription is the AI-generated intelligent description
+    // We need to be very explicit about which field comes from which column to avoid swapping
+    return (result.data || []).map((s: any) => {
+      // Explicitly map originalText - this MUST be the original quote from meeting notes
+      // Try camelCase first (quoted identifiers), then lowercase, then snake_case
+      let originalText = '';
+      if (s.originalText !== undefined && s.originalText !== null) {
+        originalText = String(s.originalText);
+      } else if (s.originaltext !== undefined && s.originaltext !== null) {
+        originalText = String(s.originaltext);
+      } else if (s.original_text !== undefined && s.original_text !== null) {
+        originalText = String(s.original_text);
+      }
+      
+      // Explicitly map suggestedDescription - this is the AI-generated intelligent description
+      // Try camelCase first (quoted identifiers), then lowercase, then snake_case
+      let suggestedDescription: string | null = null;
+      if (s.suggestedDescription !== undefined && s.suggestedDescription !== null) {
+        suggestedDescription = String(s.suggestedDescription);
+      } else if (s.suggesteddescription !== undefined && s.suggesteddescription !== null) {
+        suggestedDescription = String(s.suggesteddescription);
+      } else if (s.suggested_description !== undefined && s.suggested_description !== null) {
+        suggestedDescription = String(s.suggested_description);
+      }
+      
+      // CRITICAL: Ensure originalText is NOT the same as suggestedDescription
+      // If they're the same, it means the data might be swapped in the database
+      if (originalText && suggestedDescription && originalText === suggestedDescription) {
+        console.warn('Warning: originalText and suggestedDescription are the same. This might indicate a data mapping issue.');
+      }
+      
+      return {
+        id: s.id,
+        meetingId: s.meetingId || s.meetingid || s.meeting_id,
+        originalText: originalText, // Original text from meeting notes - DO NOT swap with suggestedDescription
+        suggestedTask: s.suggestedTask || s.suggestedtask || s.suggested_task,
+        suggestedDescription: suggestedDescription, // AI-generated description - separate from originalText
+        confidenceScore: s.confidenceScore || s.confidencescore || s.confidence_score,
+        status: s.status,
+        reviewedBy: s.reviewedBy || s.reviewedby || s.reviewed_by || null,
+        reviewedAt: s.reviewedAt || s.reviewedat || s.reviewed_at || null,
+        rejectionReason: s.rejectionReason || s.rejectionreason || s.rejection_reason || null,
+        createdAt: s.createdAt || s.createdat || s.created_at,
+      };
+    });
   },
 };
 
@@ -730,7 +854,14 @@ export const aiSuggestionsService = {
       .order('createdat', { ascending: false });
     
     // If lowercase fails, try camelCase
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    // Check for column-related errors: PGRST204, 400 status, or column name in error message
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       result = await supabase
         .from('ai_suggestions')
         .select('id, meetingId, originalText, suggestedTask, suggestedDescription, confidenceScore, status, reviewedBy, reviewedAt, rejectionReason, createdAt')
@@ -739,7 +870,13 @@ export const aiSuggestionsService = {
     }
     
     // If that also fails, try select('*')
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       result = await supabase
         .from('ai_suggestions')
         .select('*')
@@ -750,19 +887,52 @@ export const aiSuggestionsService = {
     if (result.error) throw result.error;
     
     // Normalize the returned data
-    return (result.data || []).map((s: any) => ({
-      id: s.id,
-      meetingId: s.meetingId || s.meetingid || s.meeting_id,
-      originalText: s.originalText || s.originaltext || s.original_text,
-      suggestedTask: s.suggestedTask || s.suggestedtask || s.suggested_task,
-      suggestedDescription: s.suggestedDescription || s.suggesteddescription || s.suggested_description || null,
-      confidenceScore: s.confidenceScore || s.confidencescore || s.confidence_score,
-      status: s.status,
-      reviewedBy: s.reviewedBy || s.reviewedby || s.reviewed_by || null,
-      reviewedAt: s.reviewedAt || s.reviewedat || s.reviewed_at || null,
-      rejectionReason: s.rejectionReason || s.rejectionreason || s.rejection_reason || null,
-      createdAt: s.createdAt || s.createdat || s.created_at,
-    }));
+    // IMPORTANT: Map fields correctly - originalText should be the original text from meeting notes,
+    // suggestedDescription is the AI-generated intelligent description
+    // We need to be very explicit about which field comes from which column to avoid swapping
+    return (result.data || []).map((s: any) => {
+      // Explicitly map originalText - this MUST be the original quote from meeting notes
+      // Try camelCase first (quoted identifiers), then lowercase, then snake_case
+      let originalText = '';
+      if (s.originalText !== undefined && s.originalText !== null) {
+        originalText = String(s.originalText);
+      } else if (s.originaltext !== undefined && s.originaltext !== null) {
+        originalText = String(s.originaltext);
+      } else if (s.original_text !== undefined && s.original_text !== null) {
+        originalText = String(s.original_text);
+      }
+      
+      // Explicitly map suggestedDescription - this is the AI-generated intelligent description
+      // Try camelCase first (quoted identifiers), then lowercase, then snake_case
+      let suggestedDescription: string | null = null;
+      if (s.suggestedDescription !== undefined && s.suggestedDescription !== null) {
+        suggestedDescription = String(s.suggestedDescription);
+      } else if (s.suggesteddescription !== undefined && s.suggesteddescription !== null) {
+        suggestedDescription = String(s.suggesteddescription);
+      } else if (s.suggested_description !== undefined && s.suggested_description !== null) {
+        suggestedDescription = String(s.suggested_description);
+      }
+      
+      // CRITICAL: Ensure originalText is NOT the same as suggestedDescription
+      // If they're the same, it means the data might be swapped in the database
+      if (originalText && suggestedDescription && originalText === suggestedDescription) {
+        console.warn('Warning: originalText and suggestedDescription are the same. This might indicate a data mapping issue.');
+      }
+      
+      return {
+        id: s.id,
+        meetingId: s.meetingId || s.meetingid || s.meeting_id,
+        originalText: originalText, // Original text from meeting notes - DO NOT swap with suggestedDescription
+        suggestedTask: s.suggestedTask || s.suggestedtask || s.suggested_task,
+        suggestedDescription: suggestedDescription, // AI-generated description - separate from originalText
+        confidenceScore: s.confidenceScore || s.confidencescore || s.confidence_score,
+        status: s.status,
+        reviewedBy: s.reviewedBy || s.reviewedby || s.reviewed_by || null,
+        reviewedAt: s.reviewedAt || s.reviewedat || s.reviewed_at || null,
+        rejectionReason: s.rejectionReason || s.rejectionreason || s.rejection_reason || null,
+        createdAt: s.createdAt || s.createdat || s.created_at,
+      };
+    });
   },
 
   async processMeeting(data: MeetingProcessData, existingTaskTitles?: string[]): Promise<AISuggestion[]> {
@@ -850,7 +1020,13 @@ export const aiSuggestionsService = {
     
     // If lowercase insert fails, try camelCase (quoted identifiers)
     // But don't include suggestedDescription if the column doesn't exist
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       const suggestionsToInsertCamel = suggestions.map(s => ({
         meetingId: meeting.id,
         originalText: s.originalText,
@@ -884,7 +1060,13 @@ export const aiSuggestionsService = {
     }
     
     // If that also fails, try select('*') without suggestedDescription
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       const suggestionsToInsertCamel = suggestions.map(s => ({
         meetingId: meeting.id,
         originalText: s.originalText,
@@ -946,7 +1128,13 @@ export const aiSuggestionsService = {
       .in('status', ['approved', 'pending']);
     
     // If lowercase fails, try camelCase
-    if (existingResult.error && (existingResult.error.code === 'PGRST204' || existingResult.error.message?.includes('column'))) {
+    if (existingResult.error && (
+      existingResult.error.code === 'PGRST204' || 
+      existingResult.error.code === '42703' ||
+      existingResult.error.status === 400 ||
+      existingResult.error.message?.includes('column') ||
+      existingResult.error.message?.includes('does not exist')
+    )) {
       existingResult = await supabase
         .from('ai_suggestions')
         .select('suggestedTask, originalText, status')
@@ -1059,7 +1247,13 @@ export const aiSuggestionsService = {
     }
     
     // If lowercase insert fails, try camelCase (quoted identifiers)
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       const suggestionsToInsertCamel = filteredSuggestions.map(s => ({
         meetingId: meeting.id,
         originalText: s.originalText,
@@ -1093,7 +1287,13 @@ export const aiSuggestionsService = {
     }
     
     // If that also fails, try select('*')
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
       const suggestionsToInsertCamel = filteredSuggestions.map(s => ({
         meetingId: meeting.id,
         originalText: s.originalText,

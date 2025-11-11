@@ -104,7 +104,13 @@ export default function TaskDetail() {
         .single();
       
       // If lowercase fails, try camelCase
-      if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      if (result.error && (
+        result.error.code === 'PGRST204' || 
+        result.error.code === '42703' ||
+        result.error.status === 400 ||
+        result.error.message?.includes('column') ||
+        result.error.message?.includes('does not exist')
+      )) {
         result = await supabase
           .from('tasks')
           .select('id, projectId, title, description, status, priority, estimatedHours, assignedTo, createdBy, dueDate, createdAt, updatedAt, meetingId, reviewerId')
@@ -226,7 +232,13 @@ export default function TaskDetail() {
         .order('createdat', { ascending: false });
       
       // If lowercase fails, try camelCase
-      if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      if (result.error && (
+        result.error.code === 'PGRST204' || 
+        result.error.code === '42703' ||
+        result.error.status === 400 ||
+        result.error.message?.includes('column') ||
+        result.error.message?.includes('does not exist')
+      )) {
         result = await supabase
           .from('task_attachments')
           .select('id, taskId, fileName, fileSize, fileType, filePath, uploadedBy, createdAt')

@@ -118,7 +118,13 @@ export default function MeetingDetail() {
           .order('createdat', { ascending: false });
         
         // If lowercase fails, try camelCase
-        if (tasksResult.error && (tasksResult.error.code === 'PGRST204' || tasksResult.error.message?.includes('column'))) {
+        if (tasksResult.error && (
+          tasksResult.error.code === 'PGRST204' || 
+          tasksResult.error.code === '42703' ||
+          tasksResult.error.status === 400 ||
+          tasksResult.error.message?.includes('column') ||
+          tasksResult.error.message?.includes('does not exist')
+        )) {
           tasksResult = await supabase
             .from('tasks')
             .select('id, projectId, title, description, status, priority, estimatedHours, assignedTo, createdBy, dueDate, createdAt, updatedAt, meetingId, reviewerId')
@@ -127,7 +133,13 @@ export default function MeetingDetail() {
         }
         
         // If that also fails, try select('*')
-        if (tasksResult.error && (tasksResult.error.code === 'PGRST204' || tasksResult.error.message?.includes('column'))) {
+        if (tasksResult.error && (
+          tasksResult.error.code === 'PGRST204' || 
+          tasksResult.error.code === '42703' ||
+          tasksResult.error.status === 400 ||
+          tasksResult.error.message?.includes('column') ||
+          tasksResult.error.message?.includes('does not exist')
+        )) {
           tasksResult = await supabase
             .from('tasks')
             .select('*')
