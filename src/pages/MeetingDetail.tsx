@@ -663,126 +663,9 @@ export default function MeetingDetail() {
             </Card>
           </div>
         </div>
-      </div>
-    </AppLayout>
-  );
-}
 
-// Suggestion Card Component - uses handlers from parent
-function SuggestionCard({ 
-  suggestion, 
-  onApprove, 
-  onReject, 
-  onEdit 
-}: { 
-  suggestion: AISuggestion;
-  onApprove: (s: AISuggestion) => void;
-  onReject: (s: AISuggestion) => void;
-  onEdit: (s: AISuggestion) => void;
-}) {
-  const getStatusIcon = (status: AISuggestion['status']) => {
-    switch (status) {
-      case 'approved':
-        return <CheckCircle2 className="h-5 w-5 text-green-600" />;
-      case 'rejected':
-        return <XCircle className="h-5 w-5 text-red-600" />;
-      default:
-        return <Circle className="h-5 w-5 text-yellow-500" />;
-    }
-  };
-
-  const getStatusColor = (status: AISuggestion['status']) => {
-    switch (status) {
-      case 'approved':
-        return 'default';
-      case 'rejected':
-        return 'destructive';
-      default:
-        return 'secondary';
-    }
-  };
-
-  return (
-    <Card 
-      className={`border-2 transition-all hover:shadow-md ${
-        suggestion.status === 'approved' 
-          ? 'border-green-200 bg-green-50/30' 
-          : suggestion.status === 'rejected'
-          ? 'border-red-200 bg-red-50/30'
-          : 'border-yellow-200 bg-yellow-50/30 cursor-pointer hover:border-yellow-300'
-      }`}
-    >
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              {getStatusIcon(suggestion.status)}
-              <h4 className="font-semibold">{suggestion.suggestedTask}</h4>
-              <Badge 
-                variant={getStatusColor(suggestion.status)}
-                className={
-                  suggestion.status === 'approved' 
-                    ? 'bg-green-600 text-white'
-                    : suggestion.status === 'rejected'
-                    ? 'bg-red-600 text-white'
-                    : 'bg-yellow-500 text-white'
-                }
-              >
-                {suggestion.status}
-              </Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {suggestion.originalText}
-            </p>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span>Confidence: {(suggestion.confidenceScore * 100).toFixed(0)}%</span>
-              {suggestion.reviewedAt && (
-                <span>
-                  Reviewed: {format(new Date(suggestion.reviewedAt), 'MMM dd, yyyy')}
-                </span>
-              )}
-            </div>
-            {suggestion.rejectionReason && (
-              <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                <strong>Rejection Reason:</strong> {suggestion.rejectionReason}
-              </div>
-            )}
-          </div>
-          {suggestion.status === 'pending' && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onEdit(suggestion)}
-                title="Edit and approve"
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onReject(suggestion)}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                title="Reject suggestion"
-              >
-                <XCircle className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => onApprove(suggestion)}
-                className="bg-green-600 hover:bg-green-700"
-                title="Approve suggestion"
-              >
-                <CheckCircle2 className="h-4 w-4 mr-1" />
-                Approve
-              </Button>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+        {/* Approve Suggestion Dialog */}
+        <Dialog open={!!approvingSuggestion} onOpenChange={(open) => !open && setApprovingSuggestion(null)}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Approve Suggestion</DialogTitle>
@@ -1059,6 +942,122 @@ function SuggestionCard({
         </Dialog>
       </div>
     </AppLayout>
+  );
+}
+
+// Suggestion Card Component - uses handlers from parent
+function SuggestionCard({ 
+  suggestion, 
+  onApprove, 
+  onReject, 
+  onEdit 
+}: { 
+  suggestion: AISuggestion;
+  onApprove: (s: AISuggestion) => void;
+  onReject: (s: AISuggestion) => void;
+  onEdit: (s: AISuggestion) => void;
+}) {
+  const getStatusIcon = (status: AISuggestion['status']) => {
+    switch (status) {
+      case 'approved':
+        return <CheckCircle2 className="h-5 w-5 text-green-600" />;
+      case 'rejected':
+        return <XCircle className="h-5 w-5 text-red-600" />;
+      default:
+        return <Circle className="h-5 w-5 text-yellow-500" />;
+    }
+  };
+
+  const getStatusColor = (status: AISuggestion['status']) => {
+    switch (status) {
+      case 'approved':
+        return 'default';
+      case 'rejected':
+        return 'destructive';
+      default:
+        return 'secondary';
+    }
+  };
+
+  return (
+    <Card 
+      className={`border-2 transition-all hover:shadow-md ${
+        suggestion.status === 'approved' 
+          ? 'border-green-200 bg-green-50/30' 
+          : suggestion.status === 'rejected'
+          ? 'border-red-200 bg-red-50/30'
+          : 'border-yellow-200 bg-yellow-50/30 cursor-pointer hover:border-yellow-300'
+      }`}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {getStatusIcon(suggestion.status)}
+              <h4 className="font-semibold">{suggestion.suggestedTask}</h4>
+              <Badge 
+                variant={getStatusColor(suggestion.status)}
+                className={
+                  suggestion.status === 'approved' 
+                    ? 'bg-green-600 text-white'
+                    : suggestion.status === 'rejected'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-yellow-500 text-white'
+                }
+              >
+                {suggestion.status}
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {suggestion.originalText}
+            </p>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span>Confidence: {(suggestion.confidenceScore * 100).toFixed(0)}%</span>
+              {suggestion.reviewedAt && (
+                <span>
+                  Reviewed: {format(new Date(suggestion.reviewedAt), 'MMM dd, yyyy')}
+                </span>
+              )}
+            </div>
+            {suggestion.rejectionReason && (
+              <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+                <strong>Rejection Reason:</strong> {suggestion.rejectionReason}
+              </div>
+            )}
+          </div>
+          {suggestion.status === 'pending' && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onEdit(suggestion)}
+                title="Edit and approve"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onReject(suggestion)}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                title="Reject suggestion"
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => onApprove(suggestion)}
+                className="bg-green-600 hover:bg-green-700"
+                title="Approve suggestion"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-1" />
+                Approve
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
