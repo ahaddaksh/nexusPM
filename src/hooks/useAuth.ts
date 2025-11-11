@@ -9,13 +9,33 @@ export const useAuth = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchUserFromDatabase = useCallback(async (authUser: any) => {
+    // Always return immediately with auth data, then try to enhance with DB data
+    const fallbackUser: User = {
+      id: authUser.id,
+      email: authUser.email!,
+      firstName: authUser.user_metadata?.firstName || '',
+      lastName: authUser.user_metadata?.lastName || '',
+      role: authUser.user_metadata?.role || 'member',
+      createdAt: authUser.created_at,
+    };
+
     try {
-      // Try to fetch user from users table
-      const { data: dbUser, error } = await supabase
+      // Try to fetch user from users table with timeout
+      const queryPromise = supabase
         .from('users')
         .select('*')
         .eq('id', authUser.id)
         .single();
+
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Query timeout')), 3000)
+      );
+
+      const { data: dbUser, error } = await Promise.race([
+        queryPromise,
+        timeoutPromise
+      ]) as any;
 
       if (dbUser && !error) {
         // User exists in users table, use that data
@@ -30,27 +50,35 @@ export const useAuth = () => {
         };
       }
     } catch (error) {
-      console.error('Error fetching user from database:', error);
+      // Silently fail and use fallback - don't block the app
+      console.warn('Could not fetch user from database, using auth metadata:', error);
     }
 
-    // Fallback to auth user metadata if users table doesn't have the user
-    return {
-      id: authUser.id,
-      email: authUser.email!,
-      firstName: authUser.user_metadata?.firstName || '',
-      lastName: authUser.user_metadata?.lastName || '',
-      role: authUser.user_metadata?.role || 'member',
-      createdAt: authUser.created_at,
-    };
+    // Fallback to auth user metadata if users table doesn't have the user or query fails
+    return fallbackUser;
   }, []);
 
   useEffect(() => {
-    // Check active session
+    // Check active session - don't wait for DB query to finish
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        const userData = await fetchUserFromDatabase(session.user);
-        setUser(userData);
+        // Set user immediately from auth, then enhance with DB data
+        setUser({
+          id: session.user.id,
+          email: session.user.email!,
+          firstName: session.user.user_metadata?.firstName || '',
+          lastName: session.user.user_metadata?.lastName || '',
+          role: session.user.user_metadata?.role || 'member',
+          createdAt: session.user.created_at,
+        });
         apiClient.setToken(session.access_token ?? null);
+        
+        // Then try to fetch from DB in background (non-blocking)
+        fetchUserFromDatabase(session.user).then(userData => {
+          setUser(userData);
+        }).catch(() => {
+          // Ignore errors, we already have auth data
+        });
       }
       if (!session?.user) {
         apiClient.setToken(null);
@@ -63,9 +91,23 @@ export const useAuth = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        const userData = await fetchUserFromDatabase(session.user);
-        setUser(userData);
+        // Set user immediately from auth, then enhance with DB data
+        setUser({
+          id: session.user.id,
+          email: session.user.email!,
+          firstName: session.user.user_metadata?.firstName || '',
+          lastName: session.user.user_metadata?.lastName || '',
+          role: session.user.user_metadata?.role || 'member',
+          createdAt: session.user.created_at,
+        });
         apiClient.setToken(session.access_token ?? null);
+        
+        // Then try to fetch from DB in background (non-blocking)
+        fetchUserFromDatabase(session.user).then(userData => {
+          setUser(userData);
+        }).catch(() => {
+          // Ignore errors, we already have auth data
+        });
       } else {
         setUser(null);
         apiClient.setToken(null);

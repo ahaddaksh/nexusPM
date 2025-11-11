@@ -153,14 +153,38 @@ function UsersManagement() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [usersData, teamsData, departmentsData] = await Promise.all([
+      // Use Promise.allSettled to prevent one failure from blocking others
+      const [usersResult, teamsResult, departmentsResult] = await Promise.allSettled([
         adminService.getUsers(),
         adminService.getTeams(),
         adminService.getDepartments(),
       ]);
-      setUsers(usersData);
-      setTeams(teamsData);
-      setDepartments(departmentsData);
+
+      if (usersResult.status === 'fulfilled') {
+        setUsers(usersResult.value);
+      } else {
+        console.error('Error loading users:', usersResult.reason);
+        setUsers([]);
+        toast({
+          title: 'Warning',
+          description: 'Could not load users. You may need to sync from authentication first.',
+          variant: 'default',
+        });
+      }
+
+      if (teamsResult.status === 'fulfilled') {
+        setTeams(teamsResult.value);
+      } else {
+        console.error('Error loading teams:', teamsResult.reason);
+        setTeams([]);
+      }
+
+      if (departmentsResult.status === 'fulfilled') {
+        setDepartments(departmentsResult.value);
+      } else {
+        console.error('Error loading departments:', departmentsResult.reason);
+        setDepartments([]);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -273,8 +297,11 @@ function UsersManagement() {
           <TableBody>
             {users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  No users found. Create your first user to get started.
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <div className="space-y-2">
+                    <p>No users found in the users table.</p>
+                    <p className="text-sm">Click "Sync from Auth" to sync users from authentication.</p>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : (
