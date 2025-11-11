@@ -229,11 +229,13 @@ function UsersManagement() {
     email: '',
     firstName: '',
     lastName: '',
+    password: '',
     role: 'member' as User['role'],
     isActive: true,
     teamId: '',
     departmentId: '',
   });
+  const [generatePassword, setGeneratePassword] = useState(true);
 
   useEffect(() => {
     loadData();
@@ -319,11 +321,33 @@ function UsersManagement() {
     }
   };
 
+  const generateRandomPassword = () => {
+    // Generate a secure random password
+    const length = 12;
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < length; i++) {
+      password += charset.charAt(Math.floor(Math.random() * charset.length));
+    }
+    return password;
+  };
+
   const handleSave = async () => {
     if (!formData.firstName || !formData.lastName || !formData.email) {
       toast({
         title: 'Error',
         description: 'Please fill in all required fields',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a valid email address',
         variant: 'destructive',
       });
       return;
@@ -336,24 +360,107 @@ function UsersManagement() {
           teamId: formData.teamId || null,
           departmentId: formData.departmentId || null,
         });
-      } else {
-        // For new users, we need to create them in auth first
-        // This is a simplified version - in production, you'd want proper user creation
         toast({
-          title: 'Info',
-          description: 'User creation requires authentication setup. Please use the registration page or sync existing users.',
-          variant: 'default',
+          title: 'Success',
+          description: 'User updated',
         });
-        return;
+      } else {
+        // Create new user
+        let password = formData.password;
+        if (generatePassword || !password) {
+          password = generateRandomPassword();
+        }
+
+        // Validate password if manually entered
+        if (!generatePassword && password.length < 6) {
+          toast({
+            title: 'Error',
+            description: 'Password must be at least 6 characters long',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Create user in Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: password,
+          options: {
+            data: {
+              firstName: formData.firstName,
+              lastName: formData.lastName,
+              role: formData.role,
+            },
+            emailRedirectTo: `${window.location.origin}/login`,
+          },
+        });
+
+        if (authError) {
+          // Check if user already exists
+          if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
+            throw new Error('A user with this email already exists. Please sync from auth or use a different email.');
+          }
+          throw new Error(`Failed to create user: ${authError.message}`);
+        }
+
+        if (!authData.user) {
+          throw new Error('User creation failed - no user returned');
+        }
+
+        // Create user record in users table
+        const { error: userError } = await supabase
+          .from('users')
+          .insert({
+            id: authData.user.id,
+            email: formData.email,
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            role: formData.role,
+            isActive: formData.isActive,
+            teamId: formData.teamId || null,
+            departmentId: formData.departmentId || null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+
+        if (userError) {
+          // If user table insert fails, try to clean up auth user
+          console.error('Failed to create user record:', userError);
+          // Note: We can't easily delete the auth user without admin privileges
+          throw new Error(`Failed to create user record: ${userError.message}`);
+        }
+
+        // Send password reset email so user can set their own password
+        // This will work even if email confirmation is required
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(formData.email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+
+        if (resetError) {
+          console.warn('Failed to send password reset email:', resetError);
+          // Don't fail the whole operation, just warn
+          toast({
+            title: 'User created',
+            description: `User created successfully. ${generatePassword ? `Temporary password: ${password}. ` : ''}Please share this password securely with the user, or they can use "Forgot Password" on the login page to set their own password.`,
+            variant: 'default',
+            duration: 10000, // Show for 10 seconds so admin can copy password
+          });
+        } else {
+          toast({
+            title: 'Success',
+            description: `User created successfully. ${generatePassword ? `Temporary password: ${password}. ` : ''}A password reset email has been sent to ${formData.email} so they can set their own password.`,
+            variant: 'default',
+            duration: 10000, // Show for 10 seconds so admin can copy password
+          });
+        }
       }
-      toast({
-        title: 'Success',
-        description: editingUser ? 'User updated' : 'User created',
-      });
       setIsDialogOpen(false);
       setEditingUser(null);
+      setFormData({ email: '', firstName: '', lastName: '', password: '', role: 'member', isActive: true, teamId: '', departmentId: '' });
+      setGeneratePassword(true);
       loadData();
     } catch (error) {
+      console.error('Error saving user:', error);
       toast({
         title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to save user',
@@ -379,7 +486,7 @@ function UsersManagement() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Sync from Auth
             </Button>
-            <Button onClick={() => { setEditingUser(null); setFormData({ email: '', firstName: '', lastName: '', role: 'member', isActive: true, teamId: '', departmentId: '' }); setIsDialogOpen(true); }}>
+            <Button onClick={() => { setEditingUser(null); setFormData({ email: '', firstName: '', lastName: '', password: '', role: 'member', isActive: true, teamId: '', departmentId: '' }); setGeneratePassword(true); setIsDialogOpen(true); }}>
               <Plus className="h-4 w-4 mr-2" />
               Add User
             </Button>
@@ -500,6 +607,35 @@ function UsersManagement() {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 />
               </div>
+              {!editingUser && (
+                <>
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="generatePassword"
+                      checked={generatePassword}
+                      onCheckedChange={setGeneratePassword}
+                    />
+                    <Label htmlFor="generatePassword" className="cursor-pointer">
+                      Auto-generate password
+                    </Label>
+                  </div>
+                  {!generatePassword && (
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        placeholder="Enter password for user"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        User will receive a password reset email to set their own password
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
@@ -648,22 +784,25 @@ function TeamsManagement() {
     }
 
     try {
+      console.log('Saving team:', { editingTeam, formData });
       if (editingTeam) {
-        await adminService.updateTeam(editingTeam.id, {
+        const result = await adminService.updateTeam(editingTeam.id, {
           ...formData,
           departmentId: formData.departmentId || undefined,
           teamLeadId: formData.teamLeadId || undefined,
         });
+        console.log('Team updated:', result);
         toast({
           title: 'Success',
           description: 'Team updated',
         });
       } else {
-        await adminService.createTeam({
+        const result = await adminService.createTeam({
           ...formData,
           departmentId: formData.departmentId || undefined,
           teamLeadId: formData.teamLeadId || undefined,
         });
+        console.log('Team created:', result);
         toast({
           title: 'Success',
           description: 'Team created',
@@ -671,11 +810,14 @@ function TeamsManagement() {
       }
       setIsDialogOpen(false);
       setEditingTeam(null);
-      loadData();
+      setFormData({ name: '', description: '', departmentId: '', teamLeadId: '' });
+      await loadData();
     } catch (error) {
+      console.error('Error saving team:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to save team',
+        description: `Failed to save team: ${errorMessage}`,
         variant: 'destructive',
       });
     }
@@ -913,14 +1055,17 @@ function DepartmentsManagement() {
     }
 
     try {
+      console.log('Saving department:', { editingDepartment, formData });
       if (editingDepartment) {
-        await adminService.updateDepartment(editingDepartment.id, formData);
+        const result = await adminService.updateDepartment(editingDepartment.id, formData);
+        console.log('Department updated:', result);
         toast({
           title: 'Success',
           description: 'Department updated',
         });
       } else {
-        await adminService.createDepartment(formData);
+        const result = await adminService.createDepartment(formData);
+        console.log('Department created:', result);
         toast({
           title: 'Success',
           description: 'Department created',
@@ -928,11 +1073,14 @@ function DepartmentsManagement() {
       }
       setIsDialogOpen(false);
       setEditingDepartment(null);
-      loadData();
+      setFormData({ name: '', description: '' });
+      await loadData();
     } catch (error) {
+      console.error('Error saving department:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to save department',
+        description: `Failed to save department: ${errorMessage}`,
         variant: 'destructive',
       });
     }
@@ -1086,11 +1234,7 @@ function AllowedDomainsManagement() {
   const [editingDomain, setEditingDomain] = useState<AllowedDomain | null>(null);
   const [formData, setFormData] = useState({
     domain: '',
-    autoAssignTeamId: '',
-    autoAssignDepartmentId: '',
   });
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
 
   useEffect(() => {
     loadData();
@@ -1099,35 +1243,14 @@ function AllowedDomainsManagement() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [domainsResult, teamsResult, departmentsResult] = await Promise.allSettled([
-        adminService.getAllowedDomains(),
-        adminService.getTeams(),
-        adminService.getDepartments(),
-      ]);
-
-      if (domainsResult.status === 'fulfilled') {
-        setDomains(domainsResult.value);
-      } else {
-        console.error('Error loading domains:', domainsResult.reason);
-        setDomains([]);
-      }
-
-      if (teamsResult.status === 'fulfilled') {
-        setTeams(teamsResult.value);
-      } else {
-        setTeams([]);
-      }
-
-      if (departmentsResult.status === 'fulfilled') {
-        setDepartments(departmentsResult.value);
-      } else {
-        setDepartments([]);
-      }
+      const domains = await adminService.getAllowedDomains();
+      setDomains(domains);
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Error loading domains:', error);
+      setDomains([]);
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to load data',
+        description: error instanceof Error ? error.message : 'Failed to load domains',
         variant: 'destructive',
       });
     } finally {
@@ -1157,22 +1280,23 @@ function AllowedDomainsManagement() {
     }
 
     try {
+      console.log('Saving domain:', { editingDomain, formData });
       if (editingDomain) {
-        await adminService.updateAllowedDomain(editingDomain.id, {
-          ...formData,
-          autoAssignTeamId: formData.autoAssignTeamId || undefined,
-          autoAssignDepartmentId: formData.autoAssignDepartmentId || undefined,
+        const result = await adminService.updateAllowedDomain(editingDomain.id, {
+          domain: formData.domain,
+          isActive: true,
         });
+        console.log('Domain updated:', result);
         toast({
           title: 'Success',
           description: 'Domain updated',
         });
       } else {
-        await adminService.createAllowedDomain({
-          ...formData,
-          autoAssignTeamId: formData.autoAssignTeamId || undefined,
-          autoAssignDepartmentId: formData.autoAssignDepartmentId || undefined,
+        const result = await adminService.createAllowedDomain({
+          domain: formData.domain,
+          isActive: true,
         });
+        console.log('Domain created:', result);
         toast({
           title: 'Success',
           description: 'Domain added',
@@ -1180,11 +1304,14 @@ function AllowedDomainsManagement() {
       }
       setIsDialogOpen(false);
       setEditingDomain(null);
-      loadData();
+      setFormData({ domain: '' });
+      await loadData();
     } catch (error) {
+      console.error('Error saving domain:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to save domain',
+        description: `Failed to save domain: ${errorMessage}`,
         variant: 'destructive',
       });
     }
@@ -1221,7 +1348,7 @@ function AllowedDomainsManagement() {
             <CardTitle>Allowed Domains</CardTitle>
             <CardDescription>Configure which email domains are allowed for self signup</CardDescription>
           </div>
-          <Button onClick={() => { setEditingDomain(null); setFormData({ domain: '', autoAssignTeamId: '', autoAssignDepartmentId: '' }); setIsDialogOpen(true); }}>
+          <Button onClick={() => { setEditingDomain(null); setFormData({ domain: '' }); setIsDialogOpen(true); }}>
             <Plus className="h-4 w-4 mr-2" />
             Add Domain
           </Button>
@@ -1232,15 +1359,14 @@ function AllowedDomainsManagement() {
           <TableHeader>
             <TableRow>
               <TableHead>Domain</TableHead>
-              <TableHead>Auto-Assign Team</TableHead>
-              <TableHead>Auto-Assign Department</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {domains.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
                   No allowed domains configured. Click "Add Domain" to add one.
                 </TableCell>
               </TableRow>
@@ -1249,10 +1375,9 @@ function AllowedDomainsManagement() {
                 <TableRow key={domain.id}>
                   <TableCell className="font-medium">{domain.domain}</TableCell>
                   <TableCell>
-                    {domain.autoAssignTeamId ? teams.find(t => t.id === domain.autoAssignTeamId)?.name || '-' : '-'}
-                  </TableCell>
-                  <TableCell>
-                    {domain.autoAssignDepartmentId ? departments.find(d => d.id === domain.autoAssignDepartmentId)?.name || '-' : '-'}
+                    <Badge variant={domain.isActive ? 'default' : 'secondary'}>
+                      {domain.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
@@ -1264,8 +1389,6 @@ function AllowedDomainsManagement() {
                             setEditingDomain(domain);
                             setFormData({
                               domain: domain.domain,
-                              autoAssignTeamId: domain.autoAssignTeamId || '',
-                              autoAssignDepartmentId: domain.autoAssignDepartmentId || '',
                             });
                             setIsDialogOpen(true);
                           } catch (error) {
@@ -1312,47 +1435,7 @@ function AllowedDomainsManagement() {
                   value={formData.domain}
                   onChange={(e) => setFormData({ ...formData, domain: e.target.value })}
                 />
-                <p className="text-xs text-muted-foreground">Enter the domain without @ (e.g., example.com)</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="autoTeam">Auto-Assign Team (Optional)</Label>
-                <Select
-                  value={formData.autoAssignTeamId || 'none'}
-                  onValueChange={(value) => setFormData({ ...formData, autoAssignTeamId: value === 'none' ? '' : value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select team" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Auto-Assignment</SelectItem>
-                    {teams.map((team) => (
-                      <SelectItem key={team.id} value={team.id}>
-                        {team.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">Users from this domain will be automatically assigned to this team</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="autoDept">Auto-Assign Department (Optional)</Label>
-                <Select
-                  value={formData.autoAssignDepartmentId || 'none'}
-                  onValueChange={(value) => setFormData({ ...formData, autoAssignDepartmentId: value === 'none' ? '' : value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Auto-Assignment</SelectItem>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id}>
-                        {dept.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">Users from this domain will be automatically assigned to this department</p>
+                <p className="text-xs text-muted-foreground">Enter the domain without @ (e.g., example.com). Only users with email addresses from this domain will be allowed to sign up.</p>
               </div>
             </div>
             <DialogFooter>
