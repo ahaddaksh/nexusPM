@@ -22,21 +22,30 @@ export const useAuth = () => {
     try {
       // Try to fetch user from users table with timeout
       // Use maybeSingle() to handle cases where user doesn't exist in table
-      const queryPromise = supabase
+      // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
+      let result = await supabase
         .from('users')
-        .select('*')
+        .select('id, email, firstname, lastname, role, isactive, teamid, departmentid, createdat, updatedat')
         .eq('id', authUser.id)
         .maybeSingle();
-
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout')), 2000)
-      );
-
-      const result = await Promise.race([
-        queryPromise,
-        timeoutPromise
-      ]) as any;
+      
+      // If lowercase fails, try camelCase
+      if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+        result = await supabase
+          .from('users')
+          .select('id, email, firstName, lastName, role, isActive, teamId, departmentId, createdAt, updatedAt')
+          .eq('id', authUser.id)
+          .maybeSingle();
+      }
+      
+      // If that also fails, try select('*')
+      if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+        result = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authUser.id)
+          .maybeSingle();
+      }
 
       // Supabase returns { data, error } format
       if (result && result.error) {
@@ -65,16 +74,27 @@ export const useAuth = () => {
       if (result && result.data) {
         const dbUser = result.data;
         // User exists in users table, use that data
+        // Normalize column names (handle both camelCase and lowercase)
+        const normalizedUser = {
+          ...dbUser,
+          firstName: dbUser.firstName || dbUser.firstname || dbUser.first_name || '',
+          lastName: dbUser.lastName || dbUser.lastname || dbUser.last_name || '',
+          isActive: dbUser.isActive !== undefined ? dbUser.isActive : (dbUser.isactive !== undefined ? dbUser.isactive : (dbUser.is_active !== undefined ? dbUser.is_active : true)),
+          teamId: dbUser.teamId || dbUser.teamid || dbUser.team_id || null,
+          departmentId: dbUser.departmentId || dbUser.departmentid || dbUser.department_id || null,
+          createdAt: dbUser.createdAt || dbUser.createdat || dbUser.created_at,
+          updatedAt: dbUser.updatedAt || dbUser.updatedat || dbUser.updated_at,
+        };
         // Normalize role to lowercase to handle case variations
-        const normalizedRole = dbUser.role ? String(dbUser.role).toLowerCase() : 'member';
+        const normalizedRole = normalizedUser.role ? String(normalizedUser.role).toLowerCase() : 'member';
         return {
-          id: dbUser.id,
-          email: dbUser.email,
-          firstName: dbUser.firstName || dbUser.first_name || authUser.user_metadata?.firstName || '',
-          lastName: dbUser.lastName || dbUser.last_name || authUser.user_metadata?.lastName || '',
+          id: normalizedUser.id,
+          email: normalizedUser.email,
+          firstName: normalizedUser.firstName || authUser.user_metadata?.firstName || '',
+          lastName: normalizedUser.lastName || authUser.user_metadata?.lastName || '',
           role: normalizedRole as 'admin' | 'manager' | 'member',
-          isActive: dbUser.isActive ?? dbUser.is_active ?? true,
-          createdAt: dbUser.createdAt || dbUser.created_at || authUser.created_at,
+          isActive: normalizedUser.isActive,
+          createdAt: normalizedUser.createdAt || authUser.created_at,
         };
       }
     } catch (error: any) {

@@ -114,12 +114,27 @@ export default function Dashboard() {
 
         // Get available hours for this week (default 40)
         const weekStartStr = weekStart.toISOString().split('T')[0];
-        const { data: weeklyHours } = await supabase
+        // Try lowercase first
+        let weeklyResult = await supabase
           .from('user_weekly_hours')
-          .select('availableHours')
-          .eq('userId', user.id)
-          .eq('weekStartDate', weekStartStr)
+          .select('availablehours')
+          .eq('userid', user.id)
+          .eq('weekstartdate', weekStartStr)
           .maybeSingle();
+        
+        // If lowercase fails, try camelCase
+        if (weeklyResult.error && (weeklyResult.error.code === 'PGRST204' || weeklyResult.error.message?.includes('column'))) {
+          weeklyResult = await supabase
+            .from('user_weekly_hours')
+            .select('availableHours')
+            .eq('userId', user.id)
+            .eq('weekStartDate', weekStartStr)
+            .maybeSingle();
+        }
+        
+        const weeklyHours = weeklyResult.data ? {
+          availableHours: weeklyResult.data.availableHours || weeklyResult.data.availablehours || weeklyResult.data.available_hours
+        } : null;
 
         const hours = (weeklyHours?.availableHours as number) || 40;
         setAvailableHours(hours);

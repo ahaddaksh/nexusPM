@@ -110,13 +110,50 @@ export default function MeetingDetail() {
         setSuggestions(suggestionsData);
         
         // Find tasks that were created from this meeting
-        const { data: meetingTasks } = await supabase
+        // Try lowercase first
+        let tasksResult = await supabase
           .from('tasks')
-          .select('*')
-          .eq('meetingId', id)
-          .order('createdAt', { ascending: false });
+          .select('id, projectid, title, description, status, priority, estimatedhours, assignedto, createdby, duedate, createdat, updatedat, meetingid, reviewerid')
+          .eq('meetingid', id)
+          .order('createdat', { ascending: false });
         
-        setTasksFromMeeting(meetingTasks || []);
+        // If lowercase fails, try camelCase
+        if (tasksResult.error && (tasksResult.error.code === 'PGRST204' || tasksResult.error.message?.includes('column'))) {
+          tasksResult = await supabase
+            .from('tasks')
+            .select('id, projectId, title, description, status, priority, estimatedHours, assignedTo, createdBy, dueDate, createdAt, updatedAt, meetingId, reviewerId')
+            .eq('meetingId', id)
+            .order('createdAt', { ascending: false });
+        }
+        
+        // If that also fails, try select('*')
+        if (tasksResult.error && (tasksResult.error.code === 'PGRST204' || tasksResult.error.message?.includes('column'))) {
+          tasksResult = await supabase
+            .from('tasks')
+            .select('*')
+            .eq('meetingId', id)
+            .order('createdAt', { ascending: false });
+        }
+        
+        // Normalize the returned data
+        const normalizedTasks = (tasksResult.data || []).map((t: any) => ({
+          id: t.id,
+          projectId: t.projectId || t.projectid || t.project_id || null,
+          title: t.title,
+          description: t.description,
+          status: t.status,
+          priority: t.priority,
+          estimatedHours: t.estimatedHours || t.estimatedhours || t.estimated_hours || 0,
+          assignedTo: t.assignedTo || t.assignedto || t.assigned_to,
+          createdBy: t.createdBy || t.createdby || t.created_by,
+          dueDate: t.dueDate || t.duedate || t.due_date,
+          createdAt: t.createdAt || t.createdat || t.created_at,
+          updatedAt: t.updatedAt || t.updatedat || t.updated_at,
+          meetingId: t.meetingId || t.meetingid || t.meeting_id || null,
+          reviewerId: t.reviewerId || t.reviewerid || t.reviewer_id || null,
+        }));
+        
+        setTasksFromMeeting(normalizedTasks as Task[]);
       }
     } catch (err) {
       toast({

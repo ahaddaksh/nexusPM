@@ -96,22 +96,61 @@ export default function TaskDetail() {
     if (!id) return;
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      // Try lowercase first
+      let result = await supabase
         .from('tasks')
-        .select('*')
+        .select('id, projectid, title, description, status, priority, estimatedhours, assignedto, createdby, duedate, createdat, updatedat, meetingid, reviewerid')
         .eq('id', id)
         .single();
+      
+      // If lowercase fails, try camelCase
+      if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+        result = await supabase
+          .from('tasks')
+          .select('id, projectId, title, description, status, priority, estimatedHours, assignedTo, createdBy, dueDate, createdAt, updatedAt, meetingId, reviewerId')
+          .eq('id', id)
+          .single();
+      }
+      
+      // If that also fails, try select('*')
+      if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+        result = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('id', id)
+          .single();
+      }
 
-      if (error) throw error;
-      if (data) {
-        setTask(data);
+      if (result.error) throw result.error;
+      
+      // Normalize the returned data
+      const data = result.data;
+      const normalizedTask = {
+        id: data.id,
+        projectId: data.projectId || data.projectid || data.project_id || null,
+        title: data.title,
+        description: data.description,
+        status: data.status,
+        priority: data.priority,
+        estimatedHours: data.estimatedHours || data.estimatedhours || data.estimated_hours || 0,
+        assignedTo: data.assignedTo || data.assignedto || data.assigned_to,
+        createdBy: data.createdBy || data.createdby || data.created_by,
+        dueDate: data.dueDate || data.duedate || data.due_date,
+        createdAt: data.createdAt || data.createdat || data.created_at,
+        updatedAt: data.updatedAt || data.updatedat || data.updated_at,
+        meetingId: data.meetingId || data.meetingid || data.meeting_id || null,
+        reviewerId: data.reviewerId || data.reviewerid || data.reviewer_id || null,
+      };
+      
+      if (normalizedTask) {
+        setTask(normalizedTask as Task);
         setEditForm({
-          title: data.title,
-          description: data.description || '',
-          priority: data.priority,
-          assignedTo: data.assignedTo,
-          dueDate: data.dueDate ? new Date(data.dueDate).toISOString().split('T')[0] : '',
-          estimatedHours: data.estimatedHours || 0,
+          title: normalizedTask.title,
+          description: normalizedTask.description || '',
+          priority: normalizedTask.priority,
+          assignedTo: normalizedTask.assignedTo,
+          dueDate: normalizedTask.dueDate ? new Date(normalizedTask.dueDate).toISOString().split('T')[0] : '',
+          estimatedHours: normalizedTask.estimatedHours || 0,
         });
       }
     } catch (error) {
@@ -179,14 +218,46 @@ export default function TaskDetail() {
   const loadAttachments = async () => {
     if (!id) return;
     try {
-      const { data, error } = await supabase
+      // Try lowercase first
+      let result = await supabase
         .from('task_attachments')
-        .select('*')
-        .eq('taskId', id)
-        .order('createdAt', { ascending: false });
+        .select('id, taskid, filename, filesize, filetype, filepath, uploadedby, createdat')
+        .eq('taskid', id)
+        .order('createdat', { ascending: false });
+      
+      // If lowercase fails, try camelCase
+      if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+        result = await supabase
+          .from('task_attachments')
+          .select('id, taskId, fileName, fileSize, fileType, filePath, uploadedBy, createdAt')
+          .eq('taskId', id)
+          .order('createdAt', { ascending: false });
+      }
+      
+      // If that also fails, try select('*')
+      if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+        result = await supabase
+          .from('task_attachments')
+          .select('*')
+          .eq('taskId', id)
+          .order('createdAt', { ascending: false });
+      }
 
-      if (error) throw error;
-      setAttachments(data || []);
+      if (result.error) throw result.error;
+      
+      // Normalize the returned data
+      const normalized = (result.data || []).map((a: any) => ({
+        id: a.id,
+        taskId: a.taskId || a.taskid || a.task_id,
+        fileName: a.fileName || a.filename || a.file_name,
+        fileSize: a.fileSize || a.filesize || a.file_size || 0,
+        fileType: a.fileType || a.filetype || a.file_type || '',
+        filePath: a.filePath || a.filepath || a.file_path,
+        uploadedBy: a.uploadedBy || a.uploadedby || a.uploaded_by,
+        createdAt: a.createdAt || a.createdat || a.created_at,
+      }));
+      
+      setAttachments(normalized);
     } catch (error) {
       console.error('Failed to load attachments:', error);
     }

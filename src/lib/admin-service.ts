@@ -51,27 +51,129 @@ export const adminService = {
   },
 
   async getUserById(id: string): Promise<User | null> {
-    const { data, error } = await supabase
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
+    let result = await supabase
       .from('users')
-      .select('*')
+      .select('id, email, firstname, lastname, role, isactive, teamid, departmentid, createdat, updatedat')
       .eq('id', id)
       .single();
-    if (error) throw error;
-    return data;
+    
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('users')
+        .select('id, email, firstName, lastName, role, isActive, teamId, departmentId, createdAt, updatedAt')
+        .eq('id', id)
+        .single();
+    }
+    
+    // If that also fails, try select('*')
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', id)
+        .single();
+    }
+    
+    if (result.error) {
+      if (result.error.code === 'PGRST116') return null; // No rows returned
+      throw result.error;
+    }
+    
+    // Normalize the returned data
+    const user = result.data;
+    return {
+      ...user,
+      firstName: user.firstName || user.firstname || user.first_name || '',
+      lastName: user.lastName || user.lastname || user.last_name || '',
+      isActive: user.isActive !== undefined ? user.isActive : (user.isactive !== undefined ? user.isactive : (user.is_active !== undefined ? user.is_active : true)),
+      teamId: user.teamId || user.teamid || user.team_id || null,
+      departmentId: user.departmentId || user.departmentid || user.department_id || null,
+      createdAt: user.createdAt || user.createdat || user.created_at,
+      updatedAt: user.updatedAt || user.updatedat || user.updated_at,
+    };
   },
 
   async updateUser(id: string, updates: Partial<User>): Promise<User> {
-    const { data, error } = await supabase
+    // Build update object with lowercase column names first
+    const updateDataLower: any = {};
+    const updateDataCamel: any = {};
+    
+    if (updates.email !== undefined) {
+      updateDataLower.email = updates.email;
+      updateDataCamel.email = updates.email;
+    }
+    if (updates.firstName !== undefined) {
+      updateDataLower.firstname = updates.firstName;
+      updateDataCamel.firstName = updates.firstName;
+    }
+    if (updates.lastName !== undefined) {
+      updateDataLower.lastname = updates.lastName;
+      updateDataCamel.lastName = updates.lastName;
+    }
+    if (updates.role !== undefined) {
+      updateDataLower.role = updates.role;
+      updateDataCamel.role = updates.role;
+    }
+    if (updates.isActive !== undefined) {
+      updateDataLower.isactive = updates.isActive;
+      updateDataCamel.isActive = updates.isActive;
+    }
+    if (updates.teamId !== undefined) {
+      updateDataLower.teamid = updates.teamId;
+      updateDataCamel.teamId = updates.teamId;
+    }
+    if (updates.departmentId !== undefined) {
+      updateDataLower.departmentid = updates.departmentId;
+      updateDataCamel.departmentId = updates.departmentId;
+    }
+    updateDataLower.updatedat = new Date().toISOString();
+    updateDataCamel.updatedAt = new Date().toISOString();
+
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
+    // Use specific column names in SELECT to avoid schema cache issues
+    let result = await supabase
       .from('users')
-      .update({
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      })
+      .update(updateDataLower)
       .eq('id', id)
-      .select()
+      .select('id, email, firstname, lastname, role, isactive, teamid, departmentid, createdat, updatedat')
       .single();
-    if (error) throw error;
-    return data;
+    
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('users')
+        .update(updateDataCamel)
+        .eq('id', id)
+        .select('id, email, firstName, lastName, role, isActive, teamId, departmentId, createdAt, updatedAt')
+        .single();
+    }
+    
+    // If that also fails, try select('*')
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('users')
+        .update(updateDataLower)
+        .eq('id', id)
+        .select('*')
+        .single();
+    }
+    
+    if (result.error) throw result.error;
+    
+    // Normalize the returned data
+    const user = result.data;
+    return {
+      ...user,
+      firstName: user.firstName || user.firstname || user.first_name || '',
+      lastName: user.lastName || user.lastname || user.last_name || '',
+      isActive: user.isActive !== undefined ? user.isActive : (user.isactive !== undefined ? user.isactive : (user.is_active !== undefined ? user.is_active : true)),
+      teamId: user.teamId || user.teamid || user.team_id || null,
+      departmentId: user.departmentId || user.departmentid || user.department_id || null,
+      createdAt: user.createdAt || user.createdat || user.created_at,
+      updatedAt: user.updatedAt || user.updatedat || user.updated_at,
+    };
   },
 
   async syncUsersFromAuth(): Promise<void> {
@@ -180,40 +282,49 @@ export const adminService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    // Try camelCase first (migration uses camelCase)
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
     let result = await supabase
       .from('teams')
       .insert({
         name: data.name,
         description: data.description,
-        departmentId: data.departmentId || null,
-        teamLeadId: data.teamLeadId || null,
-        createdBy: user.id,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        departmentid: data.departmentId || null,
+        teamleadid: data.teamLeadId || null,
+        createdby: user.id,
+        createdat: new Date().toISOString(),
+        updatedat: new Date().toISOString(),
       })
-      .select()
+      .select('id, name, description, departmentid, teamleadid, createdby, createdat, updatedat')
       .single();
     
-    // If camelCase fails with column error, try lowercase (PostgreSQL lowercases unquoted)
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column') || result.error.message?.includes('createdAt'))) {
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column') || result.error.message?.includes('createdat'))) {
       result = await supabase
         .from('teams')
         .insert({
           name: data.name,
           description: data.description,
-          departmentid: data.departmentId || null,
-          teamleadid: data.teamLeadId || null,
-          createdby: user.id,
-          createdat: new Date().toISOString(),
-          updatedat: new Date().toISOString(),
+          departmentId: data.departmentId || null,
+          teamLeadId: data.teamLeadId || null,
+          createdBy: user.id,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         })
-        .select()
+        .select('id, name, description, departmentId, teamLeadId, createdBy, createdAt, updatedAt')
         .single();
     }
     
     if (result.error) throw result.error;
-    return result.data;
+    
+    // Normalize the returned data
+    const team = result.data;
+    return {
+      ...team,
+      departmentId: team.departmentId || team.departmentid || null,
+      teamLeadId: team.teamLeadId || team.teamleadid || null,
+      createdAt: team.createdAt || team.createdat || team.created_at,
+      updatedAt: team.updatedAt || team.updatedat || team.updated_at,
+    };
   },
 
   async updateTeam(id: string, updates: Partial<Team>): Promise<Team> {
@@ -240,26 +351,45 @@ export const adminService = {
     updateDataCamel.updatedAt = new Date().toISOString();
     updateDataLower.updatedat = new Date().toISOString();
 
-    // Try camelCase first
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
     let result = await supabase
       .from('teams')
-      .update(updateDataCamel)
+      .update(updateDataLower)
       .eq('id', id)
-      .select()
+      .select('id, name, description, departmentid, teamleadid, createdby, createdat, updatedat')
       .single();
     
-    // If camelCase fails, try lowercase
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('teams')
+        .update(updateDataCamel)
+        .eq('id', id)
+        .select('id, name, description, departmentId, teamLeadId, createdBy, createdAt, updatedAt')
+        .single();
+    }
+    
+    // If that also fails, try select('*')
     if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
       result = await supabase
         .from('teams')
         .update(updateDataLower)
         .eq('id', id)
-        .select()
+        .select('*')
         .single();
     }
     
     if (result.error) throw result.error;
-    return result.data;
+    
+    // Normalize the returned data
+    const team = result.data;
+    return {
+      ...team,
+      departmentId: team.departmentId || team.departmentid || null,
+      teamLeadId: team.teamLeadId || team.teamleadid || null,
+      createdAt: team.createdAt || team.createdat || team.created_at,
+      updatedAt: team.updatedAt || team.updatedat || team.updated_at,
+    };
   },
 
   async deleteTeam(id: string): Promise<void> {
@@ -316,36 +446,43 @@ export const adminService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    // Try camelCase first (migration uses camelCase)
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
     let result = await supabase
       .from('departments')
       .insert({
         name: data.name,
         description: data.description,
-        createdBy: user.id,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdby: user.id,
+        createdat: new Date().toISOString(),
+        updatedat: new Date().toISOString(),
       })
-      .select()
+      .select('id, name, description, createdby, createdat, updatedat')
       .single();
     
-    // If camelCase fails with column error, try lowercase (PostgreSQL lowercases unquoted)
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column') || result.error.message?.includes('createdAt'))) {
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column') || result.error.message?.includes('createdat'))) {
       result = await supabase
         .from('departments')
         .insert({
           name: data.name,
           description: data.description,
-          createdby: user.id,
-          createdat: new Date().toISOString(),
-          updatedat: new Date().toISOString(),
+          createdBy: user.id,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         })
-        .select()
+        .select('id, name, description, createdBy, createdAt, updatedAt')
         .single();
     }
     
     if (result.error) throw result.error;
-    return result.data;
+    
+    // Normalize the returned data
+    const dept = result.data;
+    return {
+      ...dept,
+      createdAt: dept.createdAt || dept.createdat || dept.created_at,
+      updatedAt: dept.updatedAt || dept.updatedat || dept.updated_at,
+    };
   },
 
   async updateDepartment(id: string, updates: Partial<Department>): Promise<Department> {
@@ -364,26 +501,43 @@ export const adminService = {
     updateDataCamel.updatedAt = new Date().toISOString();
     updateDataLower.updatedat = new Date().toISOString();
 
-    // Try camelCase first
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
     let result = await supabase
       .from('departments')
-      .update(updateDataCamel)
+      .update(updateDataLower)
       .eq('id', id)
-      .select()
+      .select('id, name, description, createdby, createdat, updatedat')
       .single();
     
-    // If camelCase fails, try lowercase
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('departments')
+        .update(updateDataCamel)
+        .eq('id', id)
+        .select('id, name, description, createdBy, createdAt, updatedAt')
+        .single();
+    }
+    
+    // If that also fails, try select('*')
     if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
       result = await supabase
         .from('departments')
         .update(updateDataLower)
         .eq('id', id)
-        .select()
+        .select('*')
         .single();
     }
     
     if (result.error) throw result.error;
-    return result.data;
+    
+    // Normalize the returned data
+    const dept = result.data;
+    return {
+      ...dept,
+      createdAt: dept.createdAt || dept.createdat || dept.created_at,
+      updatedAt: dept.updatedAt || dept.updatedat || dept.updated_at,
+    };
   },
 
   async deleteDepartment(id: string): Promise<void> {
@@ -443,36 +597,46 @@ export const adminService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    // Try camelCase first (migration uses camelCase)
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
     let result = await supabase
       .from('allowed_domains')
       .insert({
         domain: data.domain,
-        isActive: data.isActive !== undefined ? data.isActive : true,
-        createdBy: user.id,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        isactive: data.isActive !== undefined ? data.isActive : true,
+        createdby: user.id,
+        createdat: new Date().toISOString(),
+        updatedat: new Date().toISOString(),
       })
-      .select()
+      .select('id, domain, isactive, autoassignteamid, autoassigndepartmentid, createdby, createdat, updatedat')
       .single();
     
-    // If camelCase fails with column error, try lowercase (PostgreSQL lowercases unquoted)
-    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column') || result.error.message?.includes('createdAt'))) {
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column') || result.error.message?.includes('createdat'))) {
       result = await supabase
         .from('allowed_domains')
         .insert({
           domain: data.domain,
-          isactive: data.isActive !== undefined ? data.isActive : true,
-          createdby: user.id,
-          createdat: new Date().toISOString(),
-          updatedat: new Date().toISOString(),
+          isActive: data.isActive !== undefined ? data.isActive : true,
+          createdBy: user.id,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         })
-        .select()
+        .select('id, domain, isActive, autoAssignTeamId, autoAssignDepartmentId, createdBy, createdAt, updatedAt')
         .single();
     }
     
     if (result.error) throw result.error;
-    return result.data;
+    
+    // Normalize the returned data
+    const domain = result.data;
+    return {
+      ...domain,
+      isActive: domain.isActive !== undefined ? domain.isActive : (domain.isactive !== undefined ? domain.isactive : (domain.is_active !== undefined ? domain.is_active : true)),
+      autoAssignTeamId: domain.autoAssignTeamId || domain.autoassignteamid || domain.auto_assign_team_id || null,
+      autoAssignDepartmentId: domain.autoAssignDepartmentId || domain.autoassigndepartmentid || domain.auto_assign_department_id || null,
+      createdAt: domain.createdAt || domain.createdat || domain.created_at,
+      updatedAt: domain.updatedAt || domain.updatedat || domain.updated_at,
+    };
   },
 
   async updateAllowedDomain(id: string, updates: Partial<AllowedDomain>): Promise<AllowedDomain> {
@@ -491,26 +655,46 @@ export const adminService = {
     updateDataCamel.updatedAt = new Date().toISOString();
     updateDataLower.updatedat = new Date().toISOString();
 
-    // Try camelCase first
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
     let result = await supabase
       .from('allowed_domains')
-      .update(updateDataCamel)
+      .update(updateDataLower)
       .eq('id', id)
-      .select()
+      .select('id, domain, isactive, autoassignteamid, autoassigndepartmentid, createdby, createdat, updatedat')
       .single();
     
-    // If camelCase fails, try lowercase
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('allowed_domains')
+        .update(updateDataCamel)
+        .eq('id', id)
+        .select('id, domain, isActive, autoAssignTeamId, autoAssignDepartmentId, createdBy, createdAt, updatedAt')
+        .single();
+    }
+    
+    // If that also fails, try select('*')
     if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
       result = await supabase
         .from('allowed_domains')
         .update(updateDataLower)
         .eq('id', id)
-        .select()
+        .select('*')
         .single();
     }
     
     if (result.error) throw result.error;
-    return result.data;
+    
+    // Normalize the returned data
+    const domain = result.data;
+    return {
+      ...domain,
+      isActive: domain.isActive !== undefined ? domain.isActive : (domain.isactive !== undefined ? domain.isactive : (domain.is_active !== undefined ? domain.is_active : true)),
+      autoAssignTeamId: domain.autoAssignTeamId || domain.autoassignteamid || domain.auto_assign_team_id || null,
+      autoAssignDepartmentId: domain.autoAssignDepartmentId || domain.autoassigndepartmentid || domain.auto_assign_department_id || null,
+      createdAt: domain.createdAt || domain.createdat || domain.created_at,
+      updatedAt: domain.updatedAt || domain.updatedat || domain.updated_at,
+    };
   },
 
   async deleteAllowedDomain(id: string): Promise<void> {

@@ -4,22 +4,71 @@ import { Project, ProjectCreateData, Task, TaskCreateData, TimeEntry, MeetingPro
 // Projects
 export const projectsService = {
   async getProjects(): Promise<Project[]> {
-    const { data, error } = await supabase
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
+    let result = await supabase
       .from('projects')
-      .select('*')
-      .order('createdAt', { ascending: false });
+      .select('id, name, description, status, startdate, enddate, createdby, createdat, updatedat, purpose, resources')
+      .order('createdat', { ascending: false });
+    
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('projects')
+        .select('id, name, description, status, startDate, endDate, createdBy, createdAt, updatedAt, purpose, resources')
+        .order('createdAt', { ascending: false });
+    }
+    
+    // If that also fails, try select('*')
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('projects')
+        .select('*')
+        .order('createdAt', { ascending: false });
+    }
 
-    if (error) throw error;
-    return data || [];
+    if (result.error) throw result.error;
+    
+    // Normalize the returned data
+    return (result.data || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      status: p.status,
+      startDate: p.startDate || p.startdate || p.start_date,
+      endDate: p.endDate || p.enddate || p.end_date,
+      createdBy: p.createdBy || p.createdby || p.created_by,
+      createdAt: p.createdAt || p.createdat || p.created_at,
+      updatedAt: p.updatedAt || p.updatedat || p.updated_at,
+      purpose: p.purpose || null,
+      resources: p.resources || null,
+    }));
   },
 
   async createProject(data: ProjectCreateData): Promise<Project> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    const { data: project, error } = await supabase
+    // Try lowercase first
+    const insertDataLower = {
+      name: data.name,
+      description: data.description,
+      status: 'active',
+      startdate: data.startDate,
+      enddate: data.endDate,
+      createdby: user.id,
+      createdat: new Date().toISOString(),
+      updatedat: new Date().toISOString(),
+    };
+
+    let result = await supabase
       .from('projects')
-      .insert({
+      .insert(insertDataLower)
+      .select('id, name, description, status, startdate, enddate, createdby, createdat, updatedat, purpose, resources')
+      .single();
+    
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      const insertDataCamel = {
         name: data.name,
         description: data.description,
         status: 'active',
@@ -28,51 +77,193 @@ export const projectsService = {
         createdBy: user.id,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      })
-      .select()
-      .single();
+      };
+      
+      result = await supabase
+        .from('projects')
+        .insert(insertDataCamel)
+        .select('id, name, description, status, startDate, endDate, createdBy, createdAt, updatedAt, purpose, resources')
+        .single();
+    }
+    
+    // If that also fails, try select('*')
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      const insertDataCamel = {
+        name: data.name,
+        description: data.description,
+        status: 'active',
+        startDate: data.startDate,
+        endDate: data.endDate,
+        createdBy: user.id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      result = await supabase
+        .from('projects')
+        .insert(insertDataCamel)
+        .select('*')
+        .single();
+    }
 
-    if (error) throw error;
-    return project;
+    if (result.error) throw result.error;
+    
+    // Normalize the returned data
+    const project = result.data;
+    return {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      status: project.status,
+      startDate: project.startDate || project.startdate || project.start_date,
+      endDate: project.endDate || project.enddate || project.end_date,
+      createdBy: project.createdBy || project.createdby || project.created_by,
+      createdAt: project.createdAt || project.createdat || project.created_at,
+      updatedAt: project.updatedAt || project.updatedat || project.updated_at,
+      purpose: project.purpose || null,
+      resources: project.resources || null,
+    };
   },
 
   async getProject(id: string): Promise<Project> {
-    const { data, error } = await supabase
+    // Try lowercase first
+    let result = await supabase
       .from('projects')
-      .select('*')
+      .select('id, name, description, status, startdate, enddate, createdby, createdat, updatedat, purpose, resources')
       .eq('id', id)
       .single();
+    
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('projects')
+        .select('id, name, description, status, startDate, endDate, createdBy, createdAt, updatedAt, purpose, resources')
+        .eq('id', id)
+        .single();
+    }
+    
+    // If that also fails, try select('*')
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', id)
+        .single();
+    }
 
-    if (error) throw error;
-    return data;
+    if (result.error) throw result.error;
+    
+    // Normalize the returned data
+    const project = result.data;
+    return {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      status: project.status,
+      startDate: project.startDate || project.startdate || project.start_date,
+      endDate: project.endDate || project.enddate || project.end_date,
+      createdBy: project.createdBy || project.createdby || project.created_by,
+      createdAt: project.createdAt || project.createdat || project.created_at,
+      updatedAt: project.updatedAt || project.updatedat || project.updated_at,
+      purpose: project.purpose || null,
+      resources: project.resources || null,
+    };
   },
 };
 
 // Tasks
 export const tasksService = {
   async getTasks(projectId?: string): Promise<Task[]> {
+    // Try lowercase first
     let query = supabase
       .from('tasks')
-      .select('*')
-      .order('createdAt', { ascending: false });
+      .select('id, projectid, title, description, status, priority, estimatedhours, assignedto, createdby, duedate, createdat, updatedat, meetingid, reviewerid')
+      .order('createdat', { ascending: false });
 
     if (projectId) {
-      query = query.eq('projectId', projectId);
+      query = query.eq('projectid', projectId);
     }
 
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+    let result = await query;
+    
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      query = supabase
+        .from('tasks')
+        .select('id, projectId, title, description, status, priority, estimatedHours, assignedTo, createdBy, dueDate, createdAt, updatedAt, meetingId, reviewerId')
+        .order('createdAt', { ascending: false });
+
+      if (projectId) {
+        query = query.eq('projectId', projectId);
+      }
+      
+      result = await query;
+    }
+    
+    // If that also fails, try select('*')
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      query = supabase
+        .from('tasks')
+        .select('*')
+        .order('createdAt', { ascending: false });
+
+      if (projectId) {
+        query = query.eq('projectId', projectId);
+      }
+      
+      result = await query;
+    }
+
+    if (result.error) throw result.error;
+    
+    // Normalize the returned data
+    return (result.data || []).map((t: any) => ({
+      id: t.id,
+      projectId: t.projectId || t.projectid || t.project_id || null,
+      title: t.title,
+      description: t.description,
+      status: t.status,
+      priority: t.priority,
+      estimatedHours: t.estimatedHours || t.estimatedhours || t.estimated_hours || 0,
+      assignedTo: t.assignedTo || t.assignedto || t.assigned_to,
+      createdBy: t.createdBy || t.createdby || t.created_by,
+      dueDate: t.dueDate || t.duedate || t.due_date,
+      createdAt: t.createdAt || t.createdat || t.created_at,
+      updatedAt: t.updatedAt || t.updatedat || t.updated_at,
+      meetingId: t.meetingId || t.meetingid || t.meeting_id || null,
+      reviewerId: t.reviewerId || t.reviewerid || t.reviewer_id || null,
+    }));
   },
 
   async createTask(data: TaskCreateData): Promise<Task> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    const { data: task, error } = await supabase
+    // Try lowercase first
+    const insertDataLower = {
+      projectid: data.projectId || null,
+      title: data.title,
+      description: data.description,
+      status: 'todo',
+      priority: data.priority,
+      estimatedhours: data.estimatedHours,
+      assignedto: data.assignedTo,
+      createdby: user.id,
+      duedate: data.dueDate,
+      createdat: new Date().toISOString(),
+      updatedat: new Date().toISOString(),
+    };
+
+    let result = await supabase
       .from('tasks')
-      .insert({
-        projectId: data.projectId || null, // Allow null for tasks without projects
+      .insert(insertDataLower)
+      .select('id, projectid, title, description, status, priority, estimatedhours, assignedto, createdby, duedate, createdat, updatedat, meetingid, reviewerid')
+      .single();
+    
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      const insertDataCamel = {
+        projectId: data.projectId || null,
         title: data.title,
         description: data.description,
         status: 'todo',
@@ -83,27 +274,124 @@ export const tasksService = {
         dueDate: data.dueDate,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      })
-      .select()
-      .single();
+      };
+      
+      result = await supabase
+        .from('tasks')
+        .insert(insertDataCamel)
+        .select('id, projectId, title, description, status, priority, estimatedHours, assignedTo, createdBy, dueDate, createdAt, updatedAt, meetingId, reviewerId')
+        .single();
+    }
+    
+    // If that also fails, try select('*')
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      const insertDataCamel = {
+        projectId: data.projectId || null,
+        title: data.title,
+        description: data.description,
+        status: 'todo',
+        priority: data.priority,
+        estimatedHours: data.estimatedHours,
+        assignedTo: data.assignedTo,
+        createdBy: user.id,
+        dueDate: data.dueDate,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      result = await supabase
+        .from('tasks')
+        .insert(insertDataCamel)
+        .select('*')
+        .single();
+    }
 
-    if (error) throw error;
-    return task;
+    if (result.error) throw result.error;
+    
+    // Normalize the returned data
+    const task = result.data;
+    return {
+      id: task.id,
+      projectId: task.projectId || task.projectid || task.project_id || null,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      priority: task.priority,
+      estimatedHours: task.estimatedHours || task.estimatedhours || task.estimated_hours || 0,
+      assignedTo: task.assignedTo || task.assignedto || task.assigned_to,
+      createdBy: task.createdBy || task.createdby || task.created_by,
+      dueDate: task.dueDate || task.duedate || task.due_date,
+      createdAt: task.createdAt || task.createdat || task.created_at,
+      updatedAt: task.updatedAt || task.updatedat || task.updated_at,
+      meetingId: task.meetingId || task.meetingid || task.meeting_id || null,
+      reviewerId: task.reviewerId || task.reviewerid || task.reviewer_id || null,
+    };
   },
 
   async updateTaskStatus(id: string, status: Task['status']): Promise<Task> {
-    const { data, error } = await supabase
+    // Try lowercase first
+    const updateDataLower = {
+      status,
+      updatedat: new Date().toISOString(),
+    };
+
+    let result = await supabase
       .from('tasks')
-      .update({ 
+      .update(updateDataLower)
+      .eq('id', id)
+      .select('id, projectid, title, description, status, priority, estimatedhours, assignedto, createdby, duedate, createdat, updatedat, meetingid, reviewerid')
+      .single();
+    
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      const updateDataCamel = {
         status,
         updatedAt: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .select()
-      .single();
+      };
+      
+      result = await supabase
+        .from('tasks')
+        .update(updateDataCamel)
+        .eq('id', id)
+        .select('id, projectId, title, description, status, priority, estimatedHours, assignedTo, createdBy, dueDate, createdAt, updatedAt, meetingId, reviewerId')
+        .single();
+    }
+    
+    // If that also fails, try select('*')
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      const updateDataCamel = {
+        status,
+        updatedAt: new Date().toISOString(),
+      };
+      
+      result = await supabase
+        .from('tasks')
+        .update(updateDataCamel)
+        .eq('id', id)
+        .select('*')
+        .single();
+    }
 
-    if (error) throw error;
-    return data;
+    if (result.error) throw result.error;
+    
+    // Normalize the returned data
+    const task = result.data;
+    return {
+      id: task.id,
+      projectId: task.projectId || task.projectid || task.project_id || null,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      priority: task.priority,
+      estimatedHours: task.estimatedHours || task.estimatedhours || task.estimated_hours || 0,
+      assignedTo: task.assignedTo || task.assignedto || task.assigned_to,
+      createdBy: task.createdBy || task.createdby || task.created_by,
+      dueDate: task.dueDate || task.duedate || task.due_date,
+      createdAt: task.createdAt || task.createdat || task.created_at,
+      updatedAt: task.updatedAt || task.updatedat || task.updated_at,
+      meetingId: task.meetingId || task.meetingid || task.meeting_id || null,
+      reviewerId: task.reviewerId || task.reviewerid || task.reviewer_id || null,
+    };
   },
 };
 
@@ -387,28 +675,94 @@ export const meetingsService = {
   },
 
   async getMeetingSuggestions(meetingId: string): Promise<AISuggestion[]> {
-    const { data, error } = await supabase
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
+    let result = await supabase
       .from('ai_suggestions')
-      .select('*')
-      .eq('meetingId', meetingId)
-      .order('createdAt', { ascending: false });
+      .select('id, meetingid, originaltext, suggestedtask, suggesteddescription, confidencescore, status, reviewedby, reviewedat, rejectionreason, createdat')
+      .eq('meetingid', meetingId)
+      .order('createdat', { ascending: false });
+    
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('ai_suggestions')
+        .select('id, meetingId, originalText, suggestedTask, suggestedDescription, confidenceScore, status, reviewedBy, reviewedAt, rejectionReason, createdAt')
+        .eq('meetingId', meetingId)
+        .order('createdAt', { ascending: false });
+    }
+    
+    // If that also fails, try select('*')
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('ai_suggestions')
+        .select('*')
+        .eq('meetingId', meetingId)
+        .order('createdAt', { ascending: false });
+    }
 
-    if (error) throw error;
-    return data || [];
+    if (result.error) throw result.error;
+    
+    // Normalize the returned data
+    return (result.data || []).map((s: any) => ({
+      id: s.id,
+      meetingId: s.meetingId || s.meetingid || s.meeting_id,
+      originalText: s.originalText || s.originaltext || s.original_text,
+      suggestedTask: s.suggestedTask || s.suggestedtask || s.suggested_task,
+      suggestedDescription: s.suggestedDescription || s.suggesteddescription || s.suggested_description || null,
+      confidenceScore: s.confidenceScore || s.confidencescore || s.confidence_score,
+      status: s.status,
+      reviewedBy: s.reviewedBy || s.reviewedby || s.reviewed_by || null,
+      reviewedAt: s.reviewedAt || s.reviewedat || s.reviewed_at || null,
+      rejectionReason: s.rejectionReason || s.rejectionreason || s.rejection_reason || null,
+      createdAt: s.createdAt || s.createdat || s.created_at,
+    }));
   },
 };
 
 // AI Suggestions (using mock for now, but structure ready for real implementation)
 export const aiSuggestionsService = {
   async getSuggestions(): Promise<AISuggestion[]> {
-    const { data, error } = await supabase
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
+    let result = await supabase
       .from('ai_suggestions')
-      .select('*')
+      .select('id, meetingid, originaltext, suggestedtask, suggesteddescription, confidencescore, status, reviewedby, reviewedat, rejectionreason, createdat')
       .eq('status', 'pending')
-      .order('createdAt', { ascending: false });
+      .order('createdat', { ascending: false });
+    
+    // If lowercase fails, try camelCase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('ai_suggestions')
+        .select('id, meetingId, originalText, suggestedTask, suggestedDescription, confidenceScore, status, reviewedBy, reviewedAt, rejectionReason, createdAt')
+        .eq('status', 'pending')
+        .order('createdAt', { ascending: false });
+    }
+    
+    // If that also fails, try select('*')
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('ai_suggestions')
+        .select('*')
+        .eq('status', 'pending')
+        .order('createdAt', { ascending: false });
+    }
 
-    if (error) throw error;
-    return data || [];
+    if (result.error) throw result.error;
+    
+    // Normalize the returned data
+    return (result.data || []).map((s: any) => ({
+      id: s.id,
+      meetingId: s.meetingId || s.meetingid || s.meeting_id,
+      originalText: s.originalText || s.originaltext || s.original_text,
+      suggestedTask: s.suggestedTask || s.suggestedtask || s.suggested_task,
+      suggestedDescription: s.suggestedDescription || s.suggesteddescription || s.suggested_description || null,
+      confidenceScore: s.confidenceScore || s.confidencescore || s.confidence_score,
+      status: s.status,
+      reviewedBy: s.reviewedBy || s.reviewedby || s.reviewed_by || null,
+      reviewedAt: s.reviewedAt || s.reviewedat || s.reviewed_at || null,
+      rejectionReason: s.rejectionReason || s.rejectionreason || s.rejection_reason || null,
+      createdAt: s.createdAt || s.createdat || s.created_at,
+    }));
   },
 
   async processMeeting(data: MeetingProcessData, existingTaskTitles?: string[]): Promise<AISuggestion[]> {
@@ -448,26 +802,85 @@ export const aiSuggestionsService = {
     if (meetingError) throw meetingError;
 
     // Save suggestions (remove any temporary IDs, let Supabase generate UUIDs)
-    const suggestionsToInsert = suggestions.map(s => ({
-      meetingId: meeting.id,
-      originalText: s.originalText,
-      suggestedTask: s.suggestedTask,
-      suggestedDescription: (s as any).suggestedDescription || null,
-      confidenceScore: s.confidenceScore,
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
+    const suggestionsToInsertLower = suggestions.map(s => ({
+      meetingid: meeting.id,
+      originaltext: s.originalText,
+      suggestedtask: s.suggestedTask,
+      suggesteddescription: (s as any).suggestedDescription || null,
+      confidencescore: s.confidenceScore,
       status: s.status || 'pending',
-      reviewedBy: null,
-      reviewedAt: null,
-      rejectionReason: null,
-      createdAt: new Date().toISOString(),
+      reviewedby: null,
+      reviewedat: null,
+      rejectionreason: null,
+      createdat: new Date().toISOString(),
     }));
 
-    const { data: savedSuggestions, error: suggestionsError } = await supabase
+    let result = await supabase
       .from('ai_suggestions')
-      .insert(suggestionsToInsert)
-      .select();
+      .insert(suggestionsToInsertLower)
+      .select('id, meetingid, originaltext, suggestedtask, suggesteddescription, confidencescore, status, reviewedby, reviewedat, rejectionreason, createdat');
+    
+    // If lowercase fails, try camelCase (quoted identifiers)
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      const suggestionsToInsertCamel = suggestions.map(s => ({
+        meetingId: meeting.id,
+        originalText: s.originalText,
+        suggestedTask: s.suggestedTask,
+        suggestedDescription: (s as any).suggestedDescription || null,
+        confidenceScore: s.confidenceScore,
+        status: s.status || 'pending',
+        reviewedBy: null,
+        reviewedAt: null,
+        rejectionReason: null,
+        createdAt: new Date().toISOString(),
+      }));
+      
+      result = await supabase
+        .from('ai_suggestions')
+        .insert(suggestionsToInsertCamel)
+        .select('id, meetingId, originalText, suggestedTask, suggestedDescription, confidenceScore, status, reviewedBy, reviewedAt, rejectionReason, createdAt');
+    }
+    
+    // If that also fails, try select('*')
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      const suggestionsToInsertCamel = suggestions.map(s => ({
+        meetingId: meeting.id,
+        originalText: s.originalText,
+        suggestedTask: s.suggestedTask,
+        suggestedDescription: (s as any).suggestedDescription || null,
+        confidenceScore: s.confidenceScore,
+        status: s.status || 'pending',
+        reviewedBy: null,
+        reviewedAt: null,
+        rejectionReason: null,
+        createdAt: new Date().toISOString(),
+      }));
+      
+      result = await supabase
+        .from('ai_suggestions')
+        .insert(suggestionsToInsertCamel)
+        .select('*');
+    }
 
-    if (suggestionsError) throw suggestionsError;
-    return savedSuggestions || [];
+    if (result.error) throw result.error;
+    
+    // Normalize the returned data
+    const savedSuggestions = (result.data || []).map((s: any) => ({
+      id: s.id,
+      meetingId: s.meetingId || s.meetingid || s.meeting_id,
+      originalText: s.originalText || s.originaltext || s.original_text,
+      suggestedTask: s.suggestedTask || s.suggestedtask || s.suggested_task,
+      suggestedDescription: s.suggestedDescription || s.suggesteddescription || s.suggested_description || null,
+      confidenceScore: s.confidenceScore || s.confidencescore || s.confidence_score,
+      status: s.status,
+      reviewedBy: s.reviewedBy || s.reviewedby || s.reviewed_by || null,
+      reviewedAt: s.reviewedAt || s.reviewedat || s.reviewed_at || null,
+      rejectionReason: s.rejectionReason || s.rejectionreason || s.rejection_reason || null,
+      createdAt: s.createdAt || s.createdat || s.created_at,
+    }));
+
+    return savedSuggestions;
   },
 
   async reprocessMeeting(meetingId: string): Promise<AISuggestion[]> {
@@ -485,11 +898,27 @@ export const aiSuggestionsService = {
     if (meetingError || !meeting) throw new Error('Meeting not found');
 
     // Get ALL existing suggestions (approved AND pending) to avoid duplicates
-    const { data: existingSuggestions } = await supabase
+    // Try lowercase first
+    let existingResult = await supabase
       .from('ai_suggestions')
-      .select('suggestedTask, originalText, status')
-      .eq('meetingId', meetingId)
-      .in('status', ['approved', 'pending']); // Include both approved and pending
+      .select('suggestedtask, originaltext, status')
+      .eq('meetingid', meetingId)
+      .in('status', ['approved', 'pending']);
+    
+    // If lowercase fails, try camelCase
+    if (existingResult.error && (existingResult.error.code === 'PGRST204' || existingResult.error.message?.includes('column'))) {
+      existingResult = await supabase
+        .from('ai_suggestions')
+        .select('suggestedTask, originalText, status')
+        .eq('meetingId', meetingId)
+        .in('status', ['approved', 'pending']);
+    }
+    
+    const existingSuggestions = existingResult.data ? existingResult.data.map((s: any) => ({
+      suggestedTask: s.suggestedTask || s.suggestedtask || s.suggested_task,
+      originalText: s.originalText || s.originaltext || s.original_text,
+      status: s.status,
+    })) : [];
 
     // Process meeting notes with existing tasks as context
     const { deepseekService } = await import('./deepseek');
@@ -545,25 +974,85 @@ export const aiSuggestionsService = {
       return [];
     }
 
-    const suggestionsToInsert = filteredSuggestions.map(s => ({
-      meetingId: meeting.id,
-      originalText: s.originalText,
-      suggestedTask: s.suggestedTask,
-      confidenceScore: s.confidenceScore,
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
+    const suggestionsToInsertLower = filteredSuggestions.map(s => ({
+      meetingid: meeting.id,
+      originaltext: s.originalText,
+      suggestedtask: s.suggestedTask,
+      suggesteddescription: (s as any).suggestedDescription || null,
+      confidencescore: s.confidenceScore,
       status: s.status || 'pending',
-      reviewedBy: null,
-      reviewedAt: null,
-      rejectionReason: null,
-      createdAt: new Date().toISOString(),
+      reviewedby: null,
+      reviewedat: null,
+      rejectionreason: null,
+      createdat: new Date().toISOString(),
     }));
 
-    const { data: savedSuggestions, error: suggestionsError } = await supabase
+    let result = await supabase
       .from('ai_suggestions')
-      .insert(suggestionsToInsert)
-      .select();
+      .insert(suggestionsToInsertLower)
+      .select('id, meetingid, originaltext, suggestedtask, suggesteddescription, confidencescore, status, reviewedby, reviewedat, rejectionreason, createdat');
+    
+    // If lowercase fails, try camelCase (quoted identifiers)
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      const suggestionsToInsertCamel = filteredSuggestions.map(s => ({
+        meetingId: meeting.id,
+        originalText: s.originalText,
+        suggestedTask: s.suggestedTask,
+        suggestedDescription: (s as any).suggestedDescription || null,
+        confidenceScore: s.confidenceScore,
+        status: s.status || 'pending',
+        reviewedBy: null,
+        reviewedAt: null,
+        rejectionReason: null,
+        createdAt: new Date().toISOString(),
+      }));
+      
+      result = await supabase
+        .from('ai_suggestions')
+        .insert(suggestionsToInsertCamel)
+        .select('id, meetingId, originalText, suggestedTask, suggestedDescription, confidenceScore, status, reviewedBy, reviewedAt, rejectionReason, createdAt');
+    }
+    
+    // If that also fails, try select('*')
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      const suggestionsToInsertCamel = filteredSuggestions.map(s => ({
+        meetingId: meeting.id,
+        originalText: s.originalText,
+        suggestedTask: s.suggestedTask,
+        suggestedDescription: (s as any).suggestedDescription || null,
+        confidenceScore: s.confidenceScore,
+        status: s.status || 'pending',
+        reviewedBy: null,
+        reviewedAt: null,
+        rejectionReason: null,
+        createdAt: new Date().toISOString(),
+      }));
+      
+      result = await supabase
+        .from('ai_suggestions')
+        .insert(suggestionsToInsertCamel)
+        .select('*');
+    }
 
-    if (suggestionsError) throw suggestionsError;
-    return savedSuggestions || [];
+    if (result.error) throw result.error;
+    
+    // Normalize the returned data
+    const savedSuggestions = (result.data || []).map((s: any) => ({
+      id: s.id,
+      meetingId: s.meetingId || s.meetingid || s.meeting_id,
+      originalText: s.originalText || s.originaltext || s.original_text,
+      suggestedTask: s.suggestedTask || s.suggestedtask || s.suggested_task,
+      suggestedDescription: s.suggestedDescription || s.suggesteddescription || s.suggested_description || null,
+      confidenceScore: s.confidenceScore || s.confidencescore || s.confidence_score,
+      status: s.status,
+      reviewedBy: s.reviewedBy || s.reviewedby || s.reviewed_by || null,
+      reviewedAt: s.reviewedAt || s.reviewedat || s.reviewed_at || null,
+      rejectionReason: s.rejectionReason || s.rejectionreason || s.rejection_reason || null,
+      createdAt: s.createdAt || s.createdat || s.created_at,
+    }));
+
+    return savedSuggestions;
   },
 
   async approveSuggestion(suggestionId: string, modifications?: Partial<TaskCreateData>): Promise<Task> {
