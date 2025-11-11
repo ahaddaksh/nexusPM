@@ -66,11 +66,36 @@ export const deepseekService = {
         const model = DEFAULT_MODEL; // Default: deepseek-reasoner (can be overridden via VITE_AI_MODEL env var)
         
         const systemPrompt = existingTasks && existingTasks.length > 0
-          ? `You are a task extraction assistant that understands the INTENT and MEANING behind tasks, not just their wording.
+          ? `You are an intelligent task extraction and refinement assistant. Your role is to:
+1. Extract actionable tasks from meeting notes
+2. Transform vague, broad, or incomplete mentions into specific, actionable tasks
+3. Fill in missing details based on context and common business practices
+4. Break down high-level goals into concrete, executable steps
+5. Avoid duplicating existing tasks by understanding their intent and purpose
 
-CRITICAL: When comparing tasks, you must understand their SEMANTIC MEANING and INTENT, not just word matching.
+CRITICAL INSTRUCTIONS:
+- When you encounter vague mentions like "work on X", "handle Y", "look into Z", transform them into specific actions
+- Add missing details: WHO should do it, WHAT specifically needs to be done, WHEN it's needed (if mentioned), and WHY it matters
+- Break down broad tasks into 2-4 smaller, specific sub-tasks that can be completed independently
+- Make every task title start with an action verb (Create, Review, Update, Schedule, Prepare, Design, Implement, etc.)
+- Ensure tasks are SMART: Specific, Measurable, Achievable, Relevant, Time-bound (where context allows)
 
-For example, these are DUPLICATES (same intent, different wording):
+EXAMPLES OF REFINEMENT:
+Vague: "Marketing campaign"
+Refined: "Design social media content calendar for Q1 marketing campaign"
+
+Vague: "Follow up with client"
+Refined: "Schedule follow-up call with client to discuss project requirements and timeline"
+
+Vague: "Update documentation"
+Refined: "Update API documentation with new endpoint specifications and example requests"
+
+Vague: "Prepare presentation"
+Refined: "Create PowerPoint presentation for board meeting covering Q4 results and 2025 strategy"
+
+DUPLICATE DETECTION:
+When comparing with existing tasks, understand SEMANTIC MEANING and INTENT, not just word matching.
+These are DUPLICATES (same intent, different wording):
 - "Add context to pipeline information for Allen" 
 - "Provide context in pipeline data to Allen"
 - "Include context for Allen's pipeline info"
@@ -80,19 +105,50 @@ These are NOT duplicates (different intents):
 - "Review pipeline information for errors"
 - "Update pipeline documentation"
 
-When existing tasks are provided, analyze their INTENT and PURPOSE. Only suggest tasks that have a GENUINELY DIFFERENT intent or purpose. Do not suggest tasks that accomplish the same goal with different wording.
+When existing tasks are provided, analyze their INTENT and PURPOSE. Only suggest tasks that are genuinely new with unique goals, not variations of existing ones.
 
-You must return a valid JSON object with a "suggestions" array. Each suggestion must have:
-- originalText: excerpt from notes that led to this suggestion
-- suggestedTask: concise task title
-- confidenceScore: number between 0 and 1 indicating confidence this is a new, unique task`
+Return a JSON object with a "suggestions" array, each containing:
+- originalText: The exact excerpt from notes that led to this suggestion (quote directly)
+- suggestedTask: A concise, specific, actionable task title (8-12 words, action verb first)
+- confidenceScore: 0.0-1.0 indicating confidence this is a new, unique, actionable task`
 
-          : `You are a task extraction assistant that extracts actionable tasks from meeting notes.
+          : `You are an intelligent task extraction and refinement assistant. Your role is to:
+1. Extract actionable tasks from meeting notes
+2. Transform vague, broad, or incomplete mentions into specific, actionable tasks
+3. Fill in missing details based on context and common business practices
+4. Break down high-level goals into concrete, executable steps
 
-You must return a valid JSON object with a "suggestions" array. Each suggestion must have:
-- originalText: excerpt from notes that led to this suggestion
-- suggestedTask: concise task title
-- confidenceScore: number between 0 and 1`;
+CRITICAL INSTRUCTIONS:
+- When you encounter vague mentions like "work on X", "handle Y", "look into Z", transform them into specific actions
+- Add missing details: WHO should do it, WHAT specifically needs to be done, WHEN it's needed (if mentioned), and WHY it matters
+- Break down broad tasks into 2-4 smaller, specific sub-tasks that can be completed independently
+- Make every task title start with an action verb (Create, Review, Update, Schedule, Prepare, Design, Implement, etc.)
+- Ensure tasks are SMART: Specific, Measurable, Achievable, Relevant, Time-bound (where context allows)
+- If a task mentions a deadline or timeframe, include it in the task title or make it clear
+
+EXAMPLES OF REFINEMENT:
+Vague: "Marketing campaign"
+Refined: "Design social media content calendar for Q1 marketing campaign"
+
+Vague: "Follow up with client"
+Refined: "Schedule follow-up call with client to discuss project requirements and timeline"
+
+Vague: "Update documentation"
+Refined: "Update API documentation with new endpoint specifications and example requests"
+
+Vague: "Prepare presentation"
+Refined: "Create PowerPoint presentation for board meeting covering Q4 results and 2025 strategy"
+
+Vague: "Fix bugs"
+Refined: "Investigate and resolve authentication errors in user login flow"
+
+Vague: "Team meeting"
+Refined: "Schedule weekly team standup meeting for project status updates"
+
+Return a JSON object with a "suggestions" array containing detailed, actionable tasks. Each suggestion must contain:
+- originalText: The exact excerpt from notes that led to this suggestion (quote directly from notes)
+- suggestedTask: A refined, specific, actionable task title (8-12 words, action verb first)
+- confidenceScore: 0.0-1.0 indicating confidence this is a clear, actionable task`
 
         const userPrompt = existingTasks && existingTasks.length > 0
           ? `EXISTING TASKS (already created - DO NOT duplicate these in intent or purpose):
@@ -102,26 +158,64 @@ ${existingTasks.map((t, i) => `${i + 1}. "${t.title}"${t.description ? `\n   Pur
 MEETING NOTES:
 ${notes}
 
-TASK: Extract NEW actionable tasks from the meeting notes above.
+YOUR TASK:
+1. Extract ALL actionable tasks from the meeting notes
+2. For each vague, broad, or incomplete mention, transform it into a specific, actionable task
+3. Fill in missing details (who, what, when, why) based on context
+4. Break down high-level goals into concrete steps
+5. Only suggest tasks that are NEW and not covered by existing tasks
 
-CRITICAL REQUIREMENTS:
-1. Analyze the INTENT and PURPOSE of each existing task above
-2. Only suggest tasks that have a GENUINELY DIFFERENT intent or accomplish a DIFFERENT goal
-3. Do NOT suggest tasks that are semantically equivalent to existing ones, even if worded differently
-4. Focus on tasks that address different aspects, different people, or different outcomes
-5. If a task accomplishes the same goal as an existing task (even with different wording), it is a DUPLICATE and should NOT be suggested
+TRANSFORMATION RULES:
+- "We need to..." → "Create/Prepare/Implement [specific action]"
+- "Someone should..." → "Assign [specific person/role] to [specific action]"
+- "Look into..." → "Research and analyze [specific topic] and document findings"
+- "Follow up on..." → "Schedule follow-up [meeting/call] with [specific person] about [specific topic]"
+- "Work on..." → "Develop/Implement/Design [specific deliverable]"
+- Generic mentions → Add context: project name, deadline, stakeholders, specific requirements
 
-Return a JSON object with a "suggestions" array containing ONLY genuinely new, unique tasks.
-Format: {"suggestions": [{"originalText": "...", "suggestedTask": "...", "confidenceScore": 0.8}, ...]}
+QUALITY CHECK:
+Each suggested task should:
+✓ Start with an action verb
+✓ Be specific enough that someone can start working on it immediately
+✓ Include relevant context (project, deadline, stakeholder if mentioned)
+✓ Be independent and completable
+✓ Not duplicate existing tasks in intent or purpose
+
+Return a JSON object with a "suggestions" array containing ONLY new, detailed, actionable tasks.
+Minimum 3 suggestions, but extract all genuine tasks from the notes.
+Format: {"suggestions": [{"originalText": "[exact quote from notes]", "suggestedTask": "[refined actionable task]", "confidenceScore": 0.8}, ...]}
 
 If all tasks are already covered, return an empty suggestions array: {"suggestions": []}`
 
-          : `Extract actionable tasks from these meeting notes:
+          : `Extract and refine actionable tasks from these meeting notes:
 
 ${notes}
 
-Return a JSON object with a "suggestions" array containing at least 3 task suggestions.
-Format: {"suggestions": [{"originalText": "...", "suggestedTask": "...", "confidenceScore": 0.8}, ...]}`;
+YOUR TASK:
+1. Identify ALL mentions of work, actions, follow-ups, or deliverables in the notes
+2. Transform vague or broad mentions into specific, actionable tasks
+3. Fill in missing details based on context (who, what, when, why)
+4. Break down high-level goals into concrete, executable steps
+
+TRANSFORMATION RULES:
+- "We need to..." → "Create/Prepare/Implement [specific action]"
+- "Someone should..." → "Assign [specific person/role] to [specific action]"
+- "Look into..." → "Research and analyze [specific topic] and document findings"
+- "Follow up on..." → "Schedule follow-up [meeting/call] with [specific person] about [specific topic]"
+- "Work on..." → "Develop/Implement/Design [specific deliverable]"
+- Generic mentions → Add context: project name, deadline, stakeholders, specific requirements
+
+QUALITY CHECK:
+Each suggested task should:
+✓ Start with an action verb (Create, Review, Update, Schedule, Prepare, Design, Implement, etc.)
+✓ Be specific enough that someone can start working on it immediately
+✓ Include relevant context (project, deadline, stakeholder if mentioned in notes)
+✓ Be independent and completable
+✓ Be 8-12 words long for clarity
+
+Return a JSON object with a "suggestions" array containing at least 3 refined task suggestions.
+Extract all genuine tasks from the notes - don't limit yourself if there are more.
+Format: {"suggestions": [{"originalText": "[exact quote from notes]", "suggestedTask": "[refined actionable task]", "confidenceScore": 0.8}, ...]}`;
 
         const requestBody = {
           model: model,
