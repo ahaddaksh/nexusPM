@@ -803,11 +803,11 @@ export const aiSuggestionsService = {
 
     // Save suggestions (remove any temporary IDs, let Supabase generate UUIDs)
     // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
+    // Note: suggestedDescription may not exist in the database yet, so we'll try without it first
     const suggestionsToInsertLower = suggestions.map(s => ({
       meetingid: meeting.id,
       originaltext: s.originalText,
       suggestedtask: s.suggestedTask,
-      suggesteddescription: (s as any).suggestedDescription || null,
       confidencescore: s.confidenceScore,
       status: s.status || 'pending',
       reviewedby: null,
@@ -819,15 +819,42 @@ export const aiSuggestionsService = {
     let result = await supabase
       .from('ai_suggestions')
       .insert(suggestionsToInsertLower)
-      .select('id, meetingid, originaltext, suggestedtask, suggesteddescription, confidencescore, status, reviewedby, reviewedat, rejectionreason, createdat');
+      .select('id, meetingid, originaltext, suggestedtask, confidencescore, status, reviewedby, reviewedat, rejectionreason, createdat');
     
-    // If lowercase fails, try camelCase (quoted identifiers)
+    // If that works, try to update with suggestedDescription if it exists
+    if (!result.error && result.data && (suggestions.some(s => (s as any).suggestedDescription))) {
+      // Try to update with suggestedDescription using lowercase
+      for (let i = 0; i < result.data.length; i++) {
+        const savedSuggestion = result.data[i];
+        const originalSuggestion = suggestions[i];
+        if ((originalSuggestion as any).suggestedDescription) {
+          // Try lowercase first
+          await supabase
+            .from('ai_suggestions')
+            .update({ suggesteddescription: (originalSuggestion as any).suggestedDescription })
+            .eq('id', savedSuggestion.id);
+          
+          // If that fails, try camelCase
+          const updateResult = await supabase
+            .from('ai_suggestions')
+            .update({ suggestedDescription: (originalSuggestion as any).suggestedDescription })
+            .eq('id', savedSuggestion.id);
+          
+          if (updateResult.error && updateResult.error.code !== 'PGRST204') {
+            // Column doesn't exist - that's okay, we'll just skip it
+            console.warn('suggestedDescription column not found, skipping update');
+          }
+        }
+      }
+    }
+    
+    // If lowercase insert fails, try camelCase (quoted identifiers)
+    // But don't include suggestedDescription if the column doesn't exist
     if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
       const suggestionsToInsertCamel = suggestions.map(s => ({
         meetingId: meeting.id,
         originalText: s.originalText,
         suggestedTask: s.suggestedTask,
-        suggestedDescription: (s as any).suggestedDescription || null,
         confidenceScore: s.confidenceScore,
         status: s.status || 'pending',
         reviewedBy: null,
@@ -839,16 +866,29 @@ export const aiSuggestionsService = {
       result = await supabase
         .from('ai_suggestions')
         .insert(suggestionsToInsertCamel)
-        .select('id, meetingId, originalText, suggestedTask, suggestedDescription, confidenceScore, status, reviewedBy, reviewedAt, rejectionReason, createdAt');
+        .select('id, meetingId, originalText, suggestedTask, confidenceScore, status, reviewedBy, reviewedAt, rejectionReason, createdAt');
+      
+      // Try to update with suggestedDescription if it exists
+      if (!result.error && result.data && (suggestions.some(s => (s as any).suggestedDescription))) {
+        for (let i = 0; i < result.data.length; i++) {
+          const savedSuggestion = result.data[i];
+          const originalSuggestion = suggestions[i];
+          if ((originalSuggestion as any).suggestedDescription) {
+            await supabase
+              .from('ai_suggestions')
+              .update({ suggestedDescription: (originalSuggestion as any).suggestedDescription })
+              .eq('id', savedSuggestion.id);
+          }
+        }
+      }
     }
     
-    // If that also fails, try select('*')
+    // If that also fails, try select('*') without suggestedDescription
     if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
       const suggestionsToInsertCamel = suggestions.map(s => ({
         meetingId: meeting.id,
         originalText: s.originalText,
         suggestedTask: s.suggestedTask,
-        suggestedDescription: (s as any).suggestedDescription || null,
         confidenceScore: s.confidenceScore,
         status: s.status || 'pending',
         reviewedBy: null,
@@ -975,11 +1015,11 @@ export const aiSuggestionsService = {
     }
 
     // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
+    // Don't include suggestedDescription in insert if column doesn't exist
     const suggestionsToInsertLower = filteredSuggestions.map(s => ({
       meetingid: meeting.id,
       originaltext: s.originalText,
       suggestedtask: s.suggestedTask,
-      suggesteddescription: (s as any).suggestedDescription || null,
       confidencescore: s.confidenceScore,
       status: s.status || 'pending',
       reviewedby: null,
@@ -991,15 +1031,39 @@ export const aiSuggestionsService = {
     let result = await supabase
       .from('ai_suggestions')
       .insert(suggestionsToInsertLower)
-      .select('id, meetingid, originaltext, suggestedtask, suggesteddescription, confidencescore, status, reviewedby, reviewedat, rejectionreason, createdat');
+      .select('id, meetingid, originaltext, suggestedtask, confidencescore, status, reviewedby, reviewedat, rejectionreason, createdat');
     
-    // If lowercase fails, try camelCase (quoted identifiers)
+    // If insert succeeds, try to update with suggestedDescription if it exists
+    if (!result.error && result.data && (filteredSuggestions.some(s => (s as any).suggestedDescription))) {
+      for (let i = 0; i < result.data.length; i++) {
+        const savedSuggestion = result.data[i];
+        const originalSuggestion = filteredSuggestions[i];
+        if ((originalSuggestion as any).suggestedDescription) {
+          // Try lowercase first
+          await supabase
+            .from('ai_suggestions')
+            .update({ suggesteddescription: (originalSuggestion as any).suggestedDescription })
+            .eq('id', savedSuggestion.id);
+          
+          // If that fails, try camelCase
+          const updateResult = await supabase
+            .from('ai_suggestions')
+            .update({ suggestedDescription: (originalSuggestion as any).suggestedDescription })
+            .eq('id', savedSuggestion.id);
+          
+          if (updateResult.error && updateResult.error.code !== 'PGRST204') {
+            console.warn('suggestedDescription column not found, skipping update');
+          }
+        }
+      }
+    }
+    
+    // If lowercase insert fails, try camelCase (quoted identifiers)
     if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
       const suggestionsToInsertCamel = filteredSuggestions.map(s => ({
         meetingId: meeting.id,
         originalText: s.originalText,
         suggestedTask: s.suggestedTask,
-        suggestedDescription: (s as any).suggestedDescription || null,
         confidenceScore: s.confidenceScore,
         status: s.status || 'pending',
         reviewedBy: null,
@@ -1011,7 +1075,21 @@ export const aiSuggestionsService = {
       result = await supabase
         .from('ai_suggestions')
         .insert(suggestionsToInsertCamel)
-        .select('id, meetingId, originalText, suggestedTask, suggestedDescription, confidenceScore, status, reviewedBy, reviewedAt, rejectionReason, createdAt');
+        .select('id, meetingId, originalText, suggestedTask, confidenceScore, status, reviewedBy, reviewedAt, rejectionReason, createdAt');
+      
+      // Try to update with suggestedDescription if it exists
+      if (!result.error && result.data && (filteredSuggestions.some(s => (s as any).suggestedDescription))) {
+        for (let i = 0; i < result.data.length; i++) {
+          const savedSuggestion = result.data[i];
+          const originalSuggestion = filteredSuggestions[i];
+          if ((originalSuggestion as any).suggestedDescription) {
+            await supabase
+              .from('ai_suggestions')
+              .update({ suggestedDescription: (originalSuggestion as any).suggestedDescription })
+              .eq('id', savedSuggestion.id);
+          }
+        }
+      }
     }
     
     // If that also fails, try select('*')
@@ -1020,7 +1098,6 @@ export const aiSuggestionsService = {
         meetingId: meeting.id,
         originalText: s.originalText,
         suggestedTask: s.suggestedTask,
-        suggestedDescription: (s as any).suggestedDescription || null,
         confidenceScore: s.confidenceScore,
         status: s.status || 'pending',
         reviewedBy: null,
