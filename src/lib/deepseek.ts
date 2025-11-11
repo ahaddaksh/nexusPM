@@ -12,9 +12,12 @@ type RawAISuggestion = Omit<AISuggestion, 'id' | 'meetingId' | 'reviewedBy' | 'r
 //
 // Example .env file:
 // VITE_AI_API_KEY=sk-your-api-key-here
-// VITE_AI_API_URL=https://api.deepseek.com/chat/completions
+// VITE_AI_API_URL=https://api.deepseek.com/v1/chat/completions
 //
-// Note: DeepSeek API endpoint is https://api.deepseek.com/chat/completions (no /v1/)
+// Note: 
+// - DeepSeek Reasoner model: deepseek-reasoner (better for intent understanding)
+// - DeepSeek Chat model: deepseek-chat (conversational)
+// - Reasoner is recommended for task extraction as it better understands semantic similarity
 
 // Access environment variables with proper typing
 const getEnv = (key: string): string | undefined => {
@@ -25,6 +28,8 @@ const AI_API_KEY = getEnv('VITE_AI_API_KEY');
 // Default to DeepSeek API (user can override with VITE_AI_API_URL env var)
 // Note: DeepSeek uses /v1/chat/completions endpoint format
 const AI_API_URL = getEnv('VITE_AI_API_URL') || 'https://api.deepseek.com/v1/chat/completions';
+// Model can be overridden via env var (default: deepseek-reasoner for better intent understanding)
+const DEFAULT_MODEL = getEnv('VITE_AI_MODEL') || 'deepseek-reasoner';
 
 // Debug logging (only in development)
 const DEBUG = (import.meta as any).env.DEV || (import.meta as any).env.MODE === 'development';
@@ -56,21 +61,81 @@ export const deepseekService = {
       try {
         logDebug('Attempting to call DeepSeek API...');
         
+        // Use reasoner model for better intent understanding and duplicate detection
+        // Reasoner models are better for single-shot tasks that require understanding intent
+        const model = DEFAULT_MODEL; // Default: deepseek-reasoner (can be overridden via VITE_AI_MODEL env var)
+        
+        const systemPrompt = existingTasks && existingTasks.length > 0
+          ? `You are a task extraction assistant that understands the INTENT and MEANING behind tasks, not just their wording.
+
+CRITICAL: When comparing tasks, you must understand their SEMANTIC MEANING and INTENT, not just word matching.
+
+For example, these are DUPLICATES (same intent, different wording):
+- "Add context to pipeline information for Allen" 
+- "Provide context in pipeline data to Allen"
+- "Include context for Allen's pipeline info"
+
+These are NOT duplicates (different intents):
+- "Add context to pipeline information for Allen"
+- "Review pipeline information for errors"
+- "Update pipeline documentation"
+
+When existing tasks are provided, analyze their INTENT and PURPOSE. Only suggest tasks that have a GENUINELY DIFFERENT intent or purpose. Do not suggest tasks that accomplish the same goal with different wording.
+
+You must return a valid JSON object with a "suggestions" array. Each suggestion must have:
+- originalText: excerpt from notes that led to this suggestion
+- suggestedTask: concise task title
+- confidenceScore: number between 0 and 1 indicating confidence this is a new, unique task`
+
+          : `You are a task extraction assistant that extracts actionable tasks from meeting notes.
+
+You must return a valid JSON object with a "suggestions" array. Each suggestion must have:
+- originalText: excerpt from notes that led to this suggestion
+- suggestedTask: concise task title
+- confidenceScore: number between 0 and 1`;
+
+        const userPrompt = existingTasks && existingTasks.length > 0
+          ? `EXISTING TASKS (already created - DO NOT duplicate these in intent or purpose):
+
+${existingTasks.map((t, i) => `${i + 1}. "${t.title}"${t.description ? `\n   Purpose: ${t.description}` : ''}`).join('\n\n')}
+
+MEETING NOTES:
+${notes}
+
+TASK: Extract NEW actionable tasks from the meeting notes above.
+
+CRITICAL REQUIREMENTS:
+1. Analyze the INTENT and PURPOSE of each existing task above
+2. Only suggest tasks that have a GENUINELY DIFFERENT intent or accomplish a DIFFERENT goal
+3. Do NOT suggest tasks that are semantically equivalent to existing ones, even if worded differently
+4. Focus on tasks that address different aspects, different people, or different outcomes
+5. If a task accomplishes the same goal as an existing task (even with different wording), it is a DUPLICATE and should NOT be suggested
+
+Return a JSON object with a "suggestions" array containing ONLY genuinely new, unique tasks.
+Format: {"suggestions": [{"originalText": "...", "suggestedTask": "...", "confidenceScore": 0.8}, ...]}
+
+If all tasks are already covered, return an empty suggestions array: {"suggestions": []}`
+
+          : `Extract actionable tasks from these meeting notes:
+
+${notes}
+
+Return a JSON object with a "suggestions" array containing at least 3 task suggestions.
+Format: {"suggestions": [{"originalText": "...", "suggestedTask": "...", "confidenceScore": 0.8}, ...]}`;
+
         const requestBody = {
-          model: 'deepseek-chat',
+          model: model,
           messages: [
             {
               role: 'system',
-              content: 'You are a helpful assistant that extracts actionable tasks from meeting notes. You must return a valid JSON object with a "suggestions" array. Each suggestion must have: originalText (excerpt from notes), suggestedTask (task title), and confidenceScore (a number between 0 and 1). When existing tasks are provided, only suggest NEW tasks that are different from the existing ones. Do not duplicate or recreate existing tasks.',
+              content: systemPrompt,
             },
             {
               role: 'user',
-              content: existingTasks && existingTasks.length > 0
-                ? `Extract NEW actionable tasks from these meeting notes. IMPORTANT: The following tasks have already been created from this meeting, so DO NOT suggest them again:\n\n${existingTasks.map(t => `- ${t.title}${t.description ? `: ${t.description}` : ''}`).join('\n')}\n\nMeeting notes:\n\n${notes}\n\nReturn a JSON object with a "suggestions" array containing NEW task suggestions that are different from the existing ones above. Only suggest tasks that are truly new and not already covered. Format: {"suggestions": [{"originalText": "...", "suggestedTask": "...", "confidenceScore": 0.8}, ...]}`
-                : `Extract actionable tasks from these meeting notes:\n\n${notes}\n\nReturn a JSON object with a "suggestions" array containing at least 3 task suggestions. Format: {"suggestions": [{"originalText": "...", "suggestedTask": "...", "confidenceScore": 0.8}, ...]}`,
+              content: userPrompt,
             },
           ],
-          temperature: 0.7,
+          temperature: 0.3, // Lower temperature for more consistent, focused responses
           response_format: { type: 'json_object' },
         };
 

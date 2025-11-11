@@ -387,20 +387,16 @@ export const aiSuggestionsService = {
 
     if (meetingError || !meeting) throw new Error('Meeting not found');
 
-    // Get all approved suggestions for this meeting to avoid duplicates
-    const { data: approvedSuggestions } = await supabase
+    // Get ALL existing suggestions (approved AND pending) to avoid duplicates
+    const { data: existingSuggestions } = await supabase
       .from('ai_suggestions')
-      .select('suggestedTask, originalText')
+      .select('suggestedTask, originalText, status')
       .eq('meetingId', meetingId)
-      .eq('status', 'approved');
-
-    // Also get tasks that might have been created from these suggestions
-    // (We'll use the suggestedTask titles to match)
-    const existingTaskTitles = approvedSuggestions?.map(s => s.suggestedTask) || [];
+      .in('status', ['approved', 'pending']); // Include both approved and pending
 
     // Process meeting notes with existing tasks as context
     const { deepseekService } = await import('./deepseek');
-    const existingTasks = approvedSuggestions?.map(s => ({
+    const existingTasks = existingSuggestions?.map(s => ({
       title: s.suggestedTask,
       description: s.originalText,
     })) || [];
@@ -411,22 +407,39 @@ export const aiSuggestionsService = {
       existingTasks
     );
 
-    // Filter out suggestions that are too similar to existing approved ones
+    // Additional client-side filtering for safety (AI should handle most of this, but we add a safety net)
+    // This uses improved semantic similarity checking
+    const existingTaskTitles = existingSuggestions?.map(s => s.suggestedTask.toLowerCase().trim()) || [];
+    
     const filteredSuggestions = newSuggestions.filter(newSuggestion => {
       const newTitle = newSuggestion.suggestedTask.toLowerCase().trim();
+      
+      // Check against all existing suggestions (approved and pending)
       return !existingTaskTitles.some(existingTitle => {
-        const existing = existingTitle.toLowerCase().trim();
-        // Check for exact match or very high similarity (>80% similar)
-        if (newTitle === existing) return true;
-        // Simple similarity check - if one contains the other or vice versa
-        if (newTitle.includes(existing) || existing.includes(newTitle)) {
-          return true;
+        // Exact match
+        if (newTitle === existingTitle) return true;
+        
+        // Check if one is a substring of the other (for very similar tasks)
+        if (newTitle.includes(existingTitle) || existingTitle.includes(newTitle)) {
+          // Only consider it duplicate if the shorter one is at least 70% of the longer one
+          const shorter = newTitle.length < existingTitle.length ? newTitle : existingTitle;
+          const longer = newTitle.length >= existingTitle.length ? newTitle : existingTitle;
+          if (shorter.length / longer.length > 0.7) return true;
         }
-        // Check word overlap (if more than 50% of words match, consider it duplicate)
-        const newWords = newTitle.split(/\s+/);
-        const existingWords = existing.split(/\s+/);
-        const commonWords = newWords.filter(w => existingWords.includes(w));
-        return commonWords.length / Math.max(newWords.length, existingWords.length) > 0.5;
+        
+        // Word-based similarity (improved)
+        const newWords = new Set(newTitle.split(/\s+/).filter(w => w.length > 2)); // Ignore very short words
+        const existingWords = new Set(existingTitle.split(/\s+/).filter(w => w.length > 2));
+        const commonWords = [...newWords].filter(w => existingWords.has(w));
+        
+        // Consider duplicate if significant word overlap AND similar length
+        const wordOverlap = commonWords.length / Math.max(newWords.size, existingWords.size);
+        const lengthSimilarity = Math.min(newTitle.length, existingTitle.length) / Math.max(newTitle.length, existingTitle.length);
+        
+        // More strict: need both high word overlap AND similar length
+        if (wordOverlap > 0.6 && lengthSimilarity > 0.7) return true;
+        
+        return false;
       });
     });
 
