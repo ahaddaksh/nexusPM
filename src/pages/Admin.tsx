@@ -35,18 +35,22 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState('users');
   const [isRefreshingRole, setIsRefreshingRole] = useState(false);
 
+  // Normalize role to lowercase for comparison
+  const userRole = user?.role?.toLowerCase();
+  const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
+
   // Check if user is admin or manager
   useEffect(() => {
-    if (user && user.role !== 'admin' && user.role !== 'manager') {
+    if (user && !isAdminOrManager) {
       toast({
         title: 'Access Denied',
         description: 'You need admin or manager privileges to access this page.',
         variant: 'destructive',
       });
     }
-  }, [user, toast]);
+  }, [user, isAdminOrManager, toast]);
 
-  if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+  if (!user || !isAdminOrManager) {
     return (
       <AppLayout>
         <div className="p-6 lg:p-8">
@@ -76,7 +80,10 @@ export default function Admin() {
                 <strong>Current User:</strong> {user.firstName} {user.lastName} ({user.email})
               </p>
               <p className="text-sm">
-                <strong>Detected Role:</strong> <span className={`font-bold ${user.role === 'admin' ? 'text-green-600' : user.role === 'manager' ? 'text-blue-600' : 'text-gray-600'}`}>{user.role || 'member'}</span>
+                <strong>Detected Role:</strong> <span className={`font-bold ${userRole === 'admin' ? 'text-green-600' : userRole === 'manager' ? 'text-blue-600' : 'text-gray-600'}`}>{user.role || 'member'}</span>
+                {user.role && user.role !== user.role.toLowerCase() && (
+                  <span className="text-xs text-orange-600 ml-2">(Note: Role is case-sensitive in database. Make sure it's lowercase 'admin')</span>
+                )}
               </p>
               <div className="mt-2 flex items-center gap-2">
                 <Button
@@ -119,7 +126,7 @@ export default function Admin() {
                   Refresh Role
                 </Button>
               </div>
-              {user.role !== 'admin' && user.role !== 'manager' && (
+              {!isAdminOrManager && (
                 <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
                   <p className="text-xs text-yellow-800">
                     <strong>⚠️ Access Issue:</strong> Your role is "{user.role}". To access User Management, you need to be an "admin" or "manager".
@@ -717,8 +724,12 @@ function TagsManagement() {
     setIsDialogOpen(true);
   };
 
+  // Normalize role to lowercase for comparison (reuse from parent scope)
+  const tagsUserRole = user?.role?.toLowerCase();
+  const tagsIsAdminOrManager = tagsUserRole === 'admin' || tagsUserRole === 'manager';
+
   // Check if user is admin or manager
-  if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+  if (!user || !tagsIsAdminOrManager) {
     return (
       <Card>
         <CardContent className="pt-6">

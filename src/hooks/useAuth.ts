@@ -65,12 +65,14 @@ export const useAuth = () => {
       if (result && result.data) {
         const dbUser = result.data;
         // User exists in users table, use that data
+        // Normalize role to lowercase to handle case variations
+        const normalizedRole = dbUser.role ? String(dbUser.role).toLowerCase() : 'member';
         return {
           id: dbUser.id,
           email: dbUser.email,
           firstName: dbUser.firstName || dbUser.first_name || authUser.user_metadata?.firstName || '',
           lastName: dbUser.lastName || dbUser.last_name || authUser.user_metadata?.lastName || '',
-          role: dbUser.role || 'member',
+          role: normalizedRole as 'admin' | 'manager' | 'member',
           isActive: dbUser.isActive ?? dbUser.is_active ?? true,
           createdAt: dbUser.createdAt || dbUser.created_at || authUser.created_at,
         };

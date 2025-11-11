@@ -10,7 +10,7 @@ import { useProjects } from '@/hooks/useProjects';
 import { useTasks } from '@/hooks/useTasks';
 import { useTimeTracking } from '@/hooks/useTimeTracking';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Clock, CheckCircle, AlertCircle, Calendar, Sparkles, TrendingUp, Play, ArrowRight } from 'lucide-react';
+import { Plus, Clock, CheckCircle, AlertCircle, Calendar, Sparkles, TrendingUp, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function Dashboard() {
@@ -18,7 +18,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { projects, fetchProjects } = useProjects();
   const { tasks, fetchTasks } = useTasks();
-  const { timeEntries, fetchTimeEntries, activeTimer } = useTimeTracking();
+  const { timeEntries, fetchTimeEntries } = useTimeTracking();
   const [stats, setStats] = useState({
     totalProjects: 0,
     totalTasks: 0,
@@ -171,29 +171,9 @@ export default function Dashboard() {
       <div className="p-6 lg:p-8">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-              <p className="text-gray-600 mt-1">Welcome back! Here's your overview</p>
-            </div>
-            {activeTimer ? (
-              <Button 
-                variant="outline" 
-                onClick={() => navigate('/timesheet')}
-                className="gap-2"
-              >
-                <Clock className="h-4 w-4" />
-                View Timer
-              </Button>
-            ) : (
-              <Button 
-                onClick={() => navigate('/timesheet')}
-                className="gap-2 bg-blue-600 hover:bg-blue-700"
-              >
-                <Play className="h-4 w-4" />
-                Start Timer
-              </Button>
-            )}
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-600 mt-1">Welcome back! Here's your overview</p>
           </div>
         </div>
 

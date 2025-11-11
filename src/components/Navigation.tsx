@@ -27,6 +27,10 @@ export default function Navigation() {
     }
   }, [user]);
 
+  // Normalize role to lowercase for comparison (handles 'Admin', 'ADMIN', 'admin', etc.)
+  const userRole = user?.role?.toLowerCase();
+  const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
+
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/projects', label: 'Projects', icon: FolderKanban },
@@ -34,7 +38,7 @@ export default function Navigation() {
     { path: '/timesheet', label: 'Timesheet', icon: Clock },
     { path: '/meetings', label: 'Meetings', icon: Sparkles },
     { path: '/meeting-processor', label: 'Process Meeting', icon: Sparkles },
-    ...(user?.role === 'admin' || user?.role === 'manager' ? [{ path: '/admin', label: 'Admin', icon: Shield }] : []),
+    ...(isAdminOrManager ? [{ path: '/admin', label: 'Admin', icon: Shield }] : []),
   ];
 
   const isActive = (path: string) => location.pathname === path;
