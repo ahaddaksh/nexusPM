@@ -20,7 +20,8 @@ export default function MeetingProcessor() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [approvingSuggestionId, setApprovingSuggestionId] = useState<string | null>(null);
   const [selectedProjectForApproval, setSelectedProjectForApproval] = useState<string>('');
-  const { suggestions, isLoading, error, processMeeting, fetchSuggestions, approveSuggestion, rejectSuggestion } = useAISuggestions();
+  const [currentMeetingId, setCurrentMeetingId] = useState<string | null>(null);
+  const { suggestions, isLoading, error, processMeeting, approveSuggestion, rejectSuggestion } = useAISuggestions();
   const { projects, fetchProjects } = useProjects();
   const { toast } = useToast();
 
@@ -28,7 +29,7 @@ export default function MeetingProcessor() {
     const loadData = async () => {
       try {
         await fetchProjects();
-        await fetchSuggestions();
+        // Don't fetch all suggestions on mount - only show suggestions for the meeting being processed
       } catch (err) {
         console.error('Error loading data:', err);
         // Don't show error toast here as it might be a database connection issue
@@ -36,7 +37,7 @@ export default function MeetingProcessor() {
       }
     };
     loadData();
-  }, [fetchProjects, fetchSuggestions]);
+  }, [fetchProjects]);
 
   const handleProcessMeeting = async () => {
     if (!meetingNotes.trim() || !meetingTitle.trim()) {
@@ -49,12 +50,18 @@ export default function MeetingProcessor() {
     }
 
     try {
-      await processMeeting({
+      const newSuggestions = await processMeeting({
         title: meetingTitle,
         notes: meetingNotes,
         projectId: selectedProjectId || undefined,
         meetingDate: meetingDate,
       });
+      
+      // Track the meeting ID from the first suggestion (all suggestions from same meeting)
+      if (newSuggestions.length > 0 && newSuggestions[0].meetingId) {
+        setCurrentMeetingId(newSuggestions[0].meetingId);
+      }
+      
       toast({
         title: 'Success',
         description: 'Meeting processed successfully. Review the AI suggestions below.',
@@ -195,9 +202,25 @@ export default function MeetingProcessor() {
             />
           </div>
 
-          <Button onClick={handleProcessMeeting} disabled={isLoading}>
-            {isLoading ? 'Processing...' : 'Process Meeting Notes'}
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleProcessMeeting} disabled={isLoading}>
+              {isLoading ? 'Processing...' : 'Process Meeting Notes'}
+            </Button>
+            {(meetingTitle || meetingNotes || currentMeetingId) && (
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setMeetingTitle('');
+                  setMeetingNotes('');
+                  setMeetingDate(new Date().toISOString().split('T')[0]);
+                  setSelectedProjectId('');
+                  setCurrentMeetingId(null);
+                }}
+              >
+                Clear & Start New
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -209,16 +232,18 @@ export default function MeetingProcessor() {
         </Card>
       )}
 
-      {suggestions.length > 0 && (
+      {suggestions.filter(s => currentMeetingId ? s.meetingId === currentMeetingId : true).length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>AI Suggestions</CardTitle>
             <CardDescription>
-              Review and approve the generated tasks and actions
+              Review and approve the generated tasks and actions for this meeting
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {suggestions.map((suggestion) => (
+            {suggestions
+              .filter(s => currentMeetingId ? s.meetingId === currentMeetingId : true)
+              .map((suggestion) => (
               <Card key={suggestion.id} className="border">
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between">

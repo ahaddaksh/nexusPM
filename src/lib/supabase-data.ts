@@ -374,6 +374,7 @@ export const aiSuggestionsService = {
       meetingId: meeting.id,
       originalText: s.originalText,
       suggestedTask: s.suggestedTask,
+      suggestedDescription: (s as any).suggestedDescription || null,
       confidenceScore: s.confidenceScore,
       status: s.status || 'pending',
       reviewedBy: null,

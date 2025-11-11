@@ -25,7 +25,8 @@ export const useAISuggestions = () => {
     setError(null);
     try {
       const newSuggestions = await aiSuggestionsService.processMeeting(data);
-      setSuggestions(prev => [...prev, ...newSuggestions]);
+      // Replace suggestions with new ones (only show suggestions for the current meeting being processed)
+      setSuggestions(newSuggestions);
       return newSuggestions;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to process meeting');

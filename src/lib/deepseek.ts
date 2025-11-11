@@ -110,7 +110,13 @@ When existing tasks are provided, analyze their INTENT and PURPOSE. Only suggest
 Return a JSON object with a "suggestions" array, each containing:
 - originalText: The exact excerpt from notes that led to this suggestion (quote directly)
 - suggestedTask: A concise, specific, actionable task title (8-12 words, action verb first)
-- suggestedDescription: A detailed, intelligent description (2-4 sentences) that explains WHAT needs to be done, WHY it's important, and HOW to approach it. This should be contextually relevant to the task title, not just a copy of the originalText.
+- suggestedDescription: A detailed, intelligent description (2-4 sentences) that explains WHAT needs to be done, WHY it's important, and HOW to approach it. 
+  CRITICAL: The suggestedDescription must be DIFFERENT from originalText. It should:
+  * Expand on the task with context, rationale, and approach
+  * Explain the business value or purpose
+  * Provide guidance on how to execute the task
+  * NOT simply repeat or rephrase the originalText
+  Example: If originalText is "Update the dashboard", suggestedDescription should be something like "Review the current dashboard design and user feedback to identify areas for improvement. Update the visualizations and data points to better align with stakeholder needs and business objectives. Implement changes using the established design system and ensure all data sources are properly integrated."
 - confidenceScore: 0.0-1.0 indicating confidence this is a new, unique, actionable task`
 
           : `You are an intelligent task extraction and refinement assistant. Your role is to:
@@ -149,7 +155,13 @@ Refined: "Schedule weekly team standup meeting for project status updates"
 Return a JSON object with a "suggestions" array containing detailed, actionable tasks. Each suggestion must contain:
 - originalText: The exact excerpt from notes that led to this suggestion (quote directly from notes)
 - suggestedTask: A refined, specific, actionable task title (8-12 words, action verb first)
-- suggestedDescription: A detailed, intelligent description (2-4 sentences) that explains WHAT needs to be done, WHY it's important, and HOW to approach it. This should be contextually relevant to the task title, not just a copy of the originalText.
+- suggestedDescription: A detailed, intelligent description (2-4 sentences) that explains WHAT needs to be done, WHY it's important, and HOW to approach it.
+  CRITICAL: The suggestedDescription must be DIFFERENT from originalText. It should:
+  * Expand on the task with context, rationale, and approach
+  * Explain the business value or purpose
+  * Provide guidance on how to execute the task
+  * NOT simply repeat or rephrase the originalText
+  Example: If originalText is "Follow up with client", suggestedDescription should be something like "Schedule a follow-up call or meeting with the client to discuss their requirements in detail, address any questions or concerns they may have, and establish clear next steps for the project. This communication is essential for maintaining a strong client relationship and ensuring project alignment. Prepare an agenda beforehand and gather any relevant materials or documentation that may be needed during the discussion."
 - confidenceScore: 0.0-1.0 indicating confidence this is a clear, actionable task`
 
         const userPrompt = existingTasks && existingTasks.length > 0
@@ -185,7 +197,13 @@ Each suggested task should:
 
 Return a JSON object with a "suggestions" array containing ONLY new, detailed, actionable tasks.
 Minimum 3 suggestions, but extract all genuine tasks from the notes.
-Format: {"suggestions": [{"originalText": "[exact quote from notes]", "suggestedTask": "[refined actionable task]", "suggestedDescription": "[intelligent 2-4 sentence description]", "confidenceScore": 0.8}, ...]}
+
+IMPORTANT: For suggestedDescription, DO NOT copy originalText. Instead, create an intelligent description that:
+- Explains WHAT specifically needs to be done (expand on the task)
+- Explains WHY it matters (business value, impact, importance)
+- Explains HOW to approach it (methodology, steps, considerations)
+
+Format: {"suggestions": [{"originalText": "[exact quote from notes]", "suggestedTask": "[refined actionable task]", "suggestedDescription": "[intelligent 2-4 sentence description that is DIFFERENT from originalText]", "confidenceScore": 0.8}, ...]}
 
 If all tasks are already covered, return an empty suggestions array: {"suggestions": []}`
 
@@ -217,7 +235,13 @@ Each suggested task should:
 
 Return a JSON object with a "suggestions" array containing at least 3 refined task suggestions.
 Extract all genuine tasks from the notes - don't limit yourself if there are more.
-Format: {"suggestions": [{"originalText": "[exact quote from notes]", "suggestedTask": "[refined actionable task]", "suggestedDescription": "[intelligent 2-4 sentence description]", "confidenceScore": 0.8}, ...]}`;
+
+IMPORTANT: For suggestedDescription, DO NOT copy originalText. Instead, create an intelligent description that:
+- Explains WHAT specifically needs to be done (expand on the task)
+- Explains WHY it matters (business value, impact, importance)
+- Explains HOW to approach it (methodology, steps, considerations)
+
+Format: {"suggestions": [{"originalText": "[exact quote from notes]", "suggestedTask": "[refined actionable task]", "suggestedDescription": "[intelligent 2-4 sentence description that is DIFFERENT from originalText]", "confidenceScore": 0.8}, ...]}`;
 
         const requestBody = {
           model: model,
@@ -292,7 +316,7 @@ Format: {"suggestions": [{"originalText": "[exact quote from notes]", "suggested
         }
 
         // Handle both array and object with array property
-        let suggestions: Array<{ originalText: string; suggestedTask: string; confidenceScore: number }>;
+        let suggestions: Array<{ originalText: string; suggestedTask: string; suggestedDescription?: string; confidenceScore: number }>;
         if (Array.isArray(parsedContent)) {
           suggestions = parsedContent;
         } else if (parsedContent.tasks && Array.isArray(parsedContent.tasks)) {
@@ -319,13 +343,26 @@ Format: {"suggestions": [{"originalText": "[exact quote from notes]", "suggested
 
         logDebug(`Successfully parsed ${suggestions.length} suggestions`);
 
-        // Ensure all suggestions have required fields
-        suggestions = suggestions.map(s => ({
-          originalText: s.originalText || notes.substring(0, 100),
-          suggestedTask: s.suggestedTask || 'Review meeting notes',
-          suggestedDescription: s.suggestedDescription || `Complete the task: ${s.suggestedTask || 'Review meeting notes'}. This task requires attention to detail and should be completed according to the project requirements.`,
+        // Ensure all suggestions have required fields and generate intelligent descriptions if missing
+        suggestions = suggestions.map(s => {
+          const taskTitle = s.suggestedTask || 'Review meeting notes';
+          const originalText = s.originalText || notes.substring(0, 100);
+          
+          // Generate intelligent description if not provided by AI
+          // The description should explain WHAT, WHY, and HOW, not just copy originalText
+          let intelligentDescription = s.suggestedDescription;
+          if (!intelligentDescription || intelligentDescription.trim() === originalText.trim()) {
+            // Create an intelligent description based on the task title
+            intelligentDescription = `This task involves ${taskTitle.toLowerCase()}. It is important for maintaining project momentum and ensuring all stakeholders are aligned. Approach this systematically by breaking it down into clear steps, gathering necessary resources, and setting appropriate milestones for tracking progress.`;
+          }
+          
+          return {
+            originalText,
+            suggestedTask: taskTitle,
+            suggestedDescription: intelligentDescription,
           confidenceScore: typeof s.confidenceScore === 'number' ? Math.max(0, Math.min(1, s.confidenceScore)) : 0.8,
-        }));
+          };
+        });
 
         // Return suggestions without IDs - Supabase will generate UUIDs on insert
         return suggestions.map((s) => ({
@@ -360,18 +397,21 @@ Format: {"suggestions": [{"originalText": "[exact quote from notes]", "suggested
       {
         originalText: notes.substring(0, 100) || 'Meeting discussion about project planning',
         suggestedTask: 'Create project plan document based on meeting discussion',
+        suggestedDescription: 'Develop a comprehensive project plan document that outlines key phases, deliverables, milestones, and resource allocation. This document is critical for ensuring all team members understand the project scope, timeline, and expectations. Structure it with clear sections for objectives, timeline, dependencies, and success criteria to serve as a reference throughout the project lifecycle.',
         confidenceScore: 0.85,
         status: 'pending',
       },
       {
         originalText: notes.substring(100, 200) || 'Follow-up actions needed',
         suggestedTask: 'Schedule follow-up meeting to review progress',
+        suggestedDescription: 'Organize a follow-up meeting with relevant stakeholders to review the current progress of tasks, address any blockers, and ensure the project remains on track. This meeting is important for maintaining alignment and identifying any adjustments needed to the plan. Prepare a brief agenda beforehand and send calendar invites to all participants with relevant context and materials.',
         confidenceScore: 0.78,
         status: 'pending',
       },
       {
         originalText: notes.substring(200, 300) || 'Communication and documentation tasks',
         suggestedTask: 'Send meeting summary email to all participants',
+        suggestedDescription: 'Draft and send a concise summary email of the meeting outcomes, decisions made, and assigned action items to all attendees. This communication is essential for ensuring everyone has a clear record of what was discussed and what is expected. Include a clear call to action for each task owner, with deadlines and any relevant context or resources needed to complete their assignments.',
         confidenceScore: 0.92,
         status: 'pending',
       }
