@@ -4,19 +4,29 @@ import { User, Team, Department, AllowedDomain, Tag } from '../types';
 export const adminService = {
   // Users
   async getUsers(): Promise<User[]> {
-    const { data, error } = await supabase
+    // Try camelCase first (migration uses camelCase)
+    let result = await supabase
       .from('users')
       .select('*')
       .order('createdAt', { ascending: false });
-    if (error) {
+    
+    // If camelCase fails, try lowercase (PostgreSQL lowercases unquoted)
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column') || result.error.message?.includes('createdAt'))) {
+      result = await supabase
+        .from('users')
+        .select('*')
+        .order('createdat', { ascending: false });
+    }
+    
+    if (result.error) {
       // If table doesn't exist, return empty array instead of throwing
-      if (error.code === '42P01' || error.code === 'PGRST202' || error.message?.includes('does not exist')) {
+      if (result.error.code === '42P01' || result.error.code === 'PGRST202' || result.error.message?.includes('does not exist')) {
         console.warn('Users table does not exist. Please run the migration.');
         return [];
       }
-      throw error;
+      throw result.error;
     }
-    return data || [];
+    return result.data || [];
   },
 
   async getUserById(id: string): Promise<User | null> {
@@ -95,39 +105,100 @@ export const adminService = {
       }
       throw error;
     }
-    return data || [];
+    // Normalize column names (handle both camelCase and lowercase)
+    return (data || []).map((team: any) => ({
+      ...team,
+      departmentId: team.departmentId || team.departmentid || null,
+      teamLeadId: team.teamLeadId || team.teamleadid || null,
+      createdAt: team.createdAt || team.createdat || team.created_at,
+      updatedAt: team.updatedAt || team.updatedat || team.updated_at,
+    }));
   },
 
   async createTeam(data: Omit<Team, 'id' | 'createdAt' | 'updatedAt'>): Promise<Team> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    const { data: team, error } = await supabase
+    // Try camelCase first (migration uses camelCase)
+    let result = await supabase
       .from('teams')
       .insert({
-        ...data,
+        name: data.name,
+        description: data.description,
+        departmentId: data.departmentId || null,
+        teamLeadId: data.teamLeadId || null,
         createdBy: user.id,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })
       .select()
       .single();
-    if (error) throw error;
-    return team;
+    
+    // If camelCase fails with column error, try lowercase (PostgreSQL lowercases unquoted)
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column') || result.error.message?.includes('createdAt'))) {
+      result = await supabase
+        .from('teams')
+        .insert({
+          name: data.name,
+          description: data.description,
+          departmentid: data.departmentId || null,
+          teamleadid: data.teamLeadId || null,
+          createdby: user.id,
+          createdat: new Date().toISOString(),
+          updatedat: new Date().toISOString(),
+        })
+        .select()
+        .single();
+    }
+    
+    if (result.error) throw result.error;
+    return result.data;
   },
 
   async updateTeam(id: string, updates: Partial<Team>): Promise<Team> {
-    const { data, error } = await supabase
+    // Try camelCase first, fallback to lowercase
+    const updateDataCamel: any = {};
+    const updateDataLower: any = {};
+    
+    if (updates.name !== undefined) {
+      updateDataCamel.name = updates.name;
+      updateDataLower.name = updates.name;
+    }
+    if (updates.description !== undefined) {
+      updateDataCamel.description = updates.description;
+      updateDataLower.description = updates.description;
+    }
+    if (updates.departmentId !== undefined) {
+      updateDataCamel.departmentId = updates.departmentId;
+      updateDataLower.departmentid = updates.departmentId;
+    }
+    if (updates.teamLeadId !== undefined) {
+      updateDataCamel.teamLeadId = updates.teamLeadId;
+      updateDataLower.teamleadid = updates.teamLeadId;
+    }
+    updateDataCamel.updatedAt = new Date().toISOString();
+    updateDataLower.updatedat = new Date().toISOString();
+
+    // Try camelCase first
+    let result = await supabase
       .from('teams')
-      .update({
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      })
+      .update(updateDataCamel)
       .eq('id', id)
       .select()
       .single();
-    if (error) throw error;
-    return data;
+    
+    // If camelCase fails, try lowercase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('teams')
+        .update(updateDataLower)
+        .eq('id', id)
+        .select()
+        .single();
+    }
+    
+    if (result.error) throw result.error;
+    return result.data;
   },
 
   async deleteTeam(id: string): Promise<void> {
@@ -151,39 +222,86 @@ export const adminService = {
       }
       throw error;
     }
-    return data || [];
+    // Normalize column names (handle both camelCase and lowercase)
+    return (data || []).map((dept: any) => ({
+      ...dept,
+      createdAt: dept.createdAt || dept.createdat || dept.created_at,
+      updatedAt: dept.updatedAt || dept.updatedat || dept.updated_at,
+    }));
   },
 
   async createDepartment(data: Omit<Department, 'id' | 'createdAt' | 'updatedAt'>): Promise<Department> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    const { data: dept, error } = await supabase
+    // Try camelCase first (migration uses camelCase)
+    let result = await supabase
       .from('departments')
       .insert({
-        ...data,
+        name: data.name,
+        description: data.description,
         createdBy: user.id,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })
       .select()
       .single();
-    if (error) throw error;
-    return dept;
+    
+    // If camelCase fails with column error, try lowercase (PostgreSQL lowercases unquoted)
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column') || result.error.message?.includes('createdAt'))) {
+      result = await supabase
+        .from('departments')
+        .insert({
+          name: data.name,
+          description: data.description,
+          createdby: user.id,
+          createdat: new Date().toISOString(),
+          updatedat: new Date().toISOString(),
+        })
+        .select()
+        .single();
+    }
+    
+    if (result.error) throw result.error;
+    return result.data;
   },
 
   async updateDepartment(id: string, updates: Partial<Department>): Promise<Department> {
-    const { data, error } = await supabase
+    // Try camelCase first, fallback to lowercase
+    const updateDataCamel: any = {};
+    const updateDataLower: any = {};
+    
+    if (updates.name !== undefined) {
+      updateDataCamel.name = updates.name;
+      updateDataLower.name = updates.name;
+    }
+    if (updates.description !== undefined) {
+      updateDataCamel.description = updates.description;
+      updateDataLower.description = updates.description;
+    }
+    updateDataCamel.updatedAt = new Date().toISOString();
+    updateDataLower.updatedat = new Date().toISOString();
+
+    // Try camelCase first
+    let result = await supabase
       .from('departments')
-      .update({
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      })
+      .update(updateDataCamel)
       .eq('id', id)
       .select()
       .single();
-    if (error) throw error;
-    return data;
+    
+    // If camelCase fails, try lowercase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('departments')
+        .update(updateDataLower)
+        .eq('id', id)
+        .select()
+        .single();
+    }
+    
+    if (result.error) throw result.error;
+    return result.data;
   },
 
   async deleteDepartment(id: string): Promise<void> {
@@ -207,39 +325,89 @@ export const adminService = {
       }
       throw error;
     }
-    return data || [];
+    // Normalize column names (handle both camelCase and lowercase)
+    return (data || []).map((domain: any) => ({
+      ...domain,
+      isActive: domain.isActive !== undefined ? domain.isActive : (domain.isactive !== undefined ? domain.isactive : (domain.is_active !== undefined ? domain.is_active : true)),
+      autoAssignTeamId: domain.autoAssignTeamId || domain.autoassignteamid || domain.auto_assign_team_id || null,
+      autoAssignDepartmentId: domain.autoAssignDepartmentId || domain.autoassigndepartmentid || domain.auto_assign_department_id || null,
+      createdAt: domain.createdAt || domain.createdat || domain.created_at,
+      updatedAt: domain.updatedAt || domain.updatedat || domain.updated_at,
+    }));
   },
 
   async createAllowedDomain(data: Omit<AllowedDomain, 'id' | 'createdAt' | 'updatedAt'>): Promise<AllowedDomain> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    const { data: domain, error } = await supabase
+    // Try camelCase first (migration uses camelCase)
+    let result = await supabase
       .from('allowed_domains')
       .insert({
-        ...data,
+        domain: data.domain,
+        isActive: data.isActive !== undefined ? data.isActive : true,
         createdBy: user.id,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })
       .select()
       .single();
-    if (error) throw error;
-    return domain;
+    
+    // If camelCase fails with column error, try lowercase (PostgreSQL lowercases unquoted)
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column') || result.error.message?.includes('createdAt'))) {
+      result = await supabase
+        .from('allowed_domains')
+        .insert({
+          domain: data.domain,
+          isactive: data.isActive !== undefined ? data.isActive : true,
+          createdby: user.id,
+          createdat: new Date().toISOString(),
+          updatedat: new Date().toISOString(),
+        })
+        .select()
+        .single();
+    }
+    
+    if (result.error) throw result.error;
+    return result.data;
   },
 
   async updateAllowedDomain(id: string, updates: Partial<AllowedDomain>): Promise<AllowedDomain> {
-    const { data, error } = await supabase
+    // Try camelCase first, fallback to lowercase
+    const updateDataCamel: any = {};
+    const updateDataLower: any = {};
+    
+    if (updates.domain !== undefined) {
+      updateDataCamel.domain = updates.domain;
+      updateDataLower.domain = updates.domain;
+    }
+    if (updates.isActive !== undefined) {
+      updateDataCamel.isActive = updates.isActive;
+      updateDataLower.isactive = updates.isActive;
+    }
+    updateDataCamel.updatedAt = new Date().toISOString();
+    updateDataLower.updatedat = new Date().toISOString();
+
+    // Try camelCase first
+    let result = await supabase
       .from('allowed_domains')
-      .update({
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      })
+      .update(updateDataCamel)
       .eq('id', id)
       .select()
       .single();
-    if (error) throw error;
-    return data;
+    
+    // If camelCase fails, try lowercase
+    if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
+      result = await supabase
+        .from('allowed_domains')
+        .update(updateDataLower)
+        .eq('id', id)
+        .select()
+        .single();
+    }
+    
+    if (result.error) throw result.error;
+    return result.data;
   },
 
   async deleteAllowedDomain(id: string): Promise<void> {
