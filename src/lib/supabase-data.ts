@@ -302,19 +302,19 @@ export const projectsService = {
 // Tasks
 export const tasksService = {
   async getTasks(projectId?: string): Promise<Task[]> {
-    // Try lowercase first
+    // Try camelCase first (migrations use quoted identifiers)
     let query = supabase
       .from('tasks')
-      .select('id, projectid, title, description, status, priority, estimatedhours, assignedto, createdby, duedate, createdat, updatedat, meetingid, reviewerid, parenttaskid')
-      .order('createdat', { ascending: false });
+      .select('id, projectId, title, description, status, priority, estimatedHours, assignedTo, createdBy, dueDate, createdAt, updatedAt, meetingId, reviewerId, parentTaskId')
+      .order('createdAt', { ascending: false });
 
     if (projectId) {
-      query = query.eq('projectid', projectId);
+      query = query.eq('projectId', projectId);
     }
 
     let result = await query;
     
-    // If lowercase fails, try camelCase
+    // If camelCase fails, try lowercase (PostgreSQL lowercases unquoted identifiers)
     // Check for column-related errors: PGRST204, 400 status, or column name in error message
     if (result.error && (
       result.error.code === 'PGRST204' || 
@@ -325,11 +325,11 @@ export const tasksService = {
     )) {
       query = supabase
         .from('tasks')
-        .select('id, projectId, title, description, status, priority, estimatedHours, assignedTo, createdBy, dueDate, createdAt, updatedAt, meetingId, reviewerId, parentTaskId')
-        .order('createdAt', { ascending: false });
+        .select('id, projectid, title, description, status, priority, estimatedhours, assignedto, createdby, duedate, createdat, updatedat, meetingid, reviewerid, parenttaskid')
+        .order('createdat', { ascending: false });
 
       if (projectId) {
-        query = query.eq('projectId', projectId);
+        query = query.eq('projectid', projectId);
       }
       
       result = await query;

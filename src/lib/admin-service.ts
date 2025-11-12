@@ -900,7 +900,8 @@ export const adminService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    const { error } = await supabase
+    // Try camelCase first (migrations use quoted identifiers)
+    let result = await supabase
       .from('project_members')
       .insert({
         projectId,
@@ -909,32 +910,79 @@ export const adminService = {
         addedBy: user.id,
       });
     
-    if (error) {
-      if (error.code === '23505') { // Unique constraint violation
+    // If camelCase fails, try lowercase
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column')
+    )) {
+      result = await supabase
+        .from('project_members')
+        .insert({
+          projectid: projectId,
+          userid: userId,
+          role,
+          addedby: user.id,
+        });
+    }
+    
+    if (result.error) {
+      if (result.error.code === '23505') { // Unique constraint violation
         throw new Error('User is already a member of this project');
       }
-      throw error;
+      throw result.error;
     }
   },
 
   async removeProjectMember(projectId: string, userId: string): Promise<void> {
-    const { error } = await supabase
+    // Try camelCase first
+    let result = await supabase
       .from('project_members')
       .delete()
       .eq('projectId', projectId)
       .eq('userId', userId);
     
-    if (error) throw error;
+    // If camelCase fails, try lowercase
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column')
+    )) {
+      result = await supabase
+        .from('project_members')
+        .delete()
+        .eq('projectid', projectId)
+        .eq('userid', userId);
+    }
+    
+    if (result.error) throw result.error;
   },
 
   async updateProjectMemberRole(projectId: string, userId: string, role: 'owner' | 'member' | 'viewer'): Promise<void> {
-    const { error } = await supabase
+    // Try camelCase first
+    let result = await supabase
       .from('project_members')
       .update({ role })
       .eq('projectId', projectId)
       .eq('userId', userId);
     
-    if (error) throw error;
+    // If camelCase fails, try lowercase
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column')
+    )) {
+      result = await supabase
+        .from('project_members')
+        .update({ role })
+        .eq('projectid', projectId)
+        .eq('userid', userId);
+    }
+    
+    if (result.error) throw result.error;
   },
 };
 
