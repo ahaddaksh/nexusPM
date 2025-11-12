@@ -399,12 +399,12 @@ export default function Reports() {
     };
   }, [projectStatusData, filteredTimeEntries, filteredTasks]);
 
-  const handleGenerateCXOReport = async (saveReport: boolean = false) => {
-    const projectId = selectedProjectForReport || selectedProject;
+  const handleGenerateWeeklyReport = async () => {
+    const projectId = selectedProject;
     if (!projectId || projectId === 'all') {
       toast({
         title: 'Error',
-        description: 'Please select a specific project to generate a report',
+        description: 'Please select a specific project to generate a weekly report',
         variant: 'destructive',
       });
       return;
@@ -412,8 +412,8 @@ export default function Reports() {
 
     setIsGeneratingReport(true);
     try {
-      const { generateCXOReport, saveReport: saveReportFn } = await import('@/lib/reports-service');
-      const report = await generateCXOReport(projectId, {
+      const { generateWeeklyReport, saveReport } = await import('@/lib/reports-service');
+      const report = await generateWeeklyReport(projectId, {
         projects,
         tasks: filteredTasks,
         timeEntries: filteredTimeEntries,
@@ -422,29 +422,23 @@ export default function Reports() {
       setSelectedProjectForReport(projectId);
       setIsReportDialogOpen(true);
       
-      // Save report if requested
-      if (saveReport) {
-        try {
-          const projectName = projects.find(p => p.id === projectId)?.name;
-          await saveReportFn(projectId, report, 'cxo', projectName);
-          toast({
-            title: 'Success',
-            description: 'Report generated and saved successfully',
-          });
-          loadSavedReports(); // Reload saved reports
-        } catch (saveError) {
-          console.error('Error saving report:', saveError);
-          toast({
-            title: 'Warning',
-            description: 'Report generated but failed to save. You can still download it.',
-            variant: 'destructive',
-          });
-        }
+      // Auto-save the weekly report
+      try {
+        const projectName = projects.find(p => p.id === projectId)?.name;
+        await saveReport(projectId, report, 'summary', projectName);
+        toast({
+          title: 'Success',
+          description: 'Weekly report generated and saved successfully',
+        });
+        loadSavedReports(); // Reload saved reports
+      } catch (saveError) {
+        console.error('Error saving report:', saveError);
+        // Don't show error for save, just log it
       }
     } catch (error) {
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to generate report',
+        description: error instanceof Error ? error.message : 'Failed to generate weekly report',
         variant: 'destructive',
       });
     } finally {
@@ -493,12 +487,7 @@ export default function Reports() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={() => {
-                setSelectedProjectForReport(selectedProject);
-                if (selectedProject !== 'all') {
-                  handleGenerateCXOReport(false);
-                }
-              }}
+              onClick={handleGenerateWeeklyReport}
               disabled={selectedProject === 'all' || isGeneratingReport}
             >
               {isGeneratingReport ? (
@@ -509,28 +498,7 @@ export default function Reports() {
               ) : (
                 <>
                   <Sparkles className="h-4 w-4 mr-2" />
-                  Generate AI Report
-                </>
-              )}
-            </Button>
-            <Button
-              onClick={() => {
-                setSelectedProjectForReport(selectedProject);
-                if (selectedProject !== 'all') {
-                  handleGenerateCXOReport(true);
-                }
-              }}
-              disabled={selectedProject === 'all' || isGeneratingReport}
-            >
-              {isGeneratingReport ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Generate & Save
+                  Generate Weekly Report
                 </>
               )}
             </Button>

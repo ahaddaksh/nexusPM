@@ -40,7 +40,10 @@ import {
   Target,
   ArrowLeft,
   Square,
-  Trash2
+  Trash2,
+  Sparkles,
+  Loader2,
+  FileText
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -90,6 +93,11 @@ export default function ProjectDetail() {
   const [isMemberDialogOpen, setIsMemberDialogOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [memberRole, setMemberRole] = useState<'owner' | 'member' | 'viewer'>('member');
+  
+  // AI Report generation
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [cxoReport, setCxoReport] = useState<string | null>(null);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -394,6 +402,45 @@ export default function ProjectDetail() {
         description: error instanceof Error ? error.message : 'Failed to start timer',
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleGenerateCXOReport = async () => {
+    if (!id) return;
+    
+    setIsGeneratingReport(true);
+    try {
+      const { generateCXOReport, saveReport } = await import('@/lib/reports-service');
+      const report = await generateCXOReport(id, {
+        projects: projects.filter(p => p.id === id),
+        tasks: projectTasks,
+        timeEntries: timeEntries.filter(entry => {
+          const task = projectTasks.find(t => t.id === entry.taskId);
+          return task !== undefined;
+        }),
+      });
+      setCxoReport(report);
+      setIsReportDialogOpen(true);
+      
+      // Auto-save the report
+      try {
+        await saveReport(id, report, 'cxo', currentProject?.name);
+        toast({
+          title: 'Success',
+          description: 'Report generated and saved successfully',
+        });
+      } catch (saveError) {
+        console.error('Error saving report:', saveError);
+        // Don't show error for save, just log it
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to generate report',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGeneratingReport(false);
     }
   };
 
@@ -755,6 +802,42 @@ export default function ProjectDetail() {
                 </TableBody>
               </Table>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Quick Actions / AI Reports */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+            <CardDescription>Generate AI-powered project reports</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Button
+              variant="default"
+              className="w-full justify-start bg-blue-600 hover:bg-blue-700"
+              onClick={handleGenerateCXOReport}
+              disabled={isGeneratingReport || !id}
+            >
+              {isGeneratingReport ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Generate CXO Report
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => navigate('/reports')}
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              View All Reports
+            </Button>
           </CardContent>
         </Card>
 
@@ -1200,6 +1283,47 @@ export default function ProjectDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* CXO Report Dialog */}
+      <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>CXO-Level Project Report</DialogTitle>
+            <DialogDescription>
+              AI-generated executive summary for {currentProject?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            {cxoReport ? (
+              <div className="prose max-w-none whitespace-pre-wrap text-sm">
+                {cxoReport}
+              </div>
+            ) : (
+              <p className="text-gray-500">Generating report...</p>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (cxoReport && id) {
+                  const blob = new Blob([cxoReport], { type: 'text/plain' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `cxo-report-${id}-${format(new Date(), 'yyyy-MM-dd')}.txt`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }
+              }}
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Download TXT
+            </Button>
+            <Button onClick={() => setIsReportDialogOpen(false)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       </div>
     </AppLayout>
   );

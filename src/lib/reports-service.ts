@@ -9,6 +9,181 @@ interface ReportData {
   timeEntries: TimeEntry[];
 }
 
+export async function generateWeeklyReport(
+  projectId: string,
+  data: ReportData
+): Promise<string> {
+  const project = data.projects.find(p => p.id === projectId);
+  if (!project) {
+    throw new Error('Project not found');
+  }
+
+  // Filter data for this project
+  const projectTasks = data.tasks.filter(t => t.projectId === projectId);
+  const projectTimeEntries = data.timeEntries.filter(entry => {
+    const task = data.tasks.find(t => t.id === entry.taskId);
+    return task?.projectId === projectId;
+  });
+
+  // Calculate metrics for the last week
+  const now = new Date();
+  const lastWeekStart = startOfWeek(subWeeks(now, 1));
+  const lastWeekEnd = endOfWeek(subWeeks(now, 1));
+  const currentWeekStart = startOfWeek(now);
+  const currentWeekEnd = endOfWeek(now);
+
+  // Last week metrics
+  const lastWeekTasks = projectTasks.filter(t => {
+    if (t.status !== 'completed' || !t.updatedAt) return false;
+    const completedDate = new Date(t.updatedAt);
+    return completedDate >= lastWeekStart && completedDate <= lastWeekEnd;
+  });
+  const lastWeekHours = projectTimeEntries
+    .filter(e => {
+      const entryDate = new Date(e.startTime);
+      return entryDate >= lastWeekStart && entryDate <= lastWeekEnd;
+    })
+    .reduce((sum, e) => sum + (e.durationMinutes || 0), 0) / 60;
+
+  // Current week metrics
+  const currentWeekTasks = projectTasks.filter(t => {
+    if (t.status !== 'completed' || !t.updatedAt) return false;
+    const completedDate = new Date(t.updatedAt);
+    return completedDate >= currentWeekStart && completedDate <= currentWeekEnd;
+  });
+  const currentWeekHours = projectTimeEntries
+    .filter(e => {
+      const entryDate = new Date(e.startTime);
+      return entryDate >= currentWeekStart && entryDate <= currentWeekEnd;
+    })
+    .reduce((sum, e) => sum + (e.durationMinutes || 0), 0) / 60;
+
+  // Overall metrics
+  const totalTasks = projectTasks.length;
+  const completedTasks = projectTasks.filter(t => t.status === 'completed').length;
+  const completionPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+  
+  const totalHours = projectTimeEntries.reduce((sum, e) => sum + (e.durationMinutes || 0), 0) / 60;
+  const estimatedHours = projectTasks.reduce((sum, t) => sum + (t.estimatedHours || 0), 0);
+  const hoursProgress = estimatedHours > 0 ? (totalHours / estimatedHours) * 100 : 0;
+
+  // Risks and blockers
+  const overdueTasks = projectTasks.filter(t => {
+    if (t.status === 'completed') return false;
+    return new Date(t.dueDate) < now;
+  });
+  const highPriorityPending = projectTasks.filter(t => 
+    (t.priority === 'urgent' || t.priority === 'high') && t.status !== 'completed'
+  );
+  const blockedTasks = projectTasks.filter(t => t.status === 'review');
+
+  // Status breakdown
+  const statusBreakdown = {
+    todo: projectTasks.filter(t => t.status === 'todo').length,
+    in_progress: projectTasks.filter(t => t.status === 'in_progress').length,
+    review: projectTasks.filter(t => t.status === 'review').length,
+    completed: completedTasks,
+  };
+
+  // Timeline
+  const startDate = new Date(project.startDate);
+  const endDate = new Date(project.endDate);
+  const totalDuration = endDate.getTime() - startDate.getTime();
+  const elapsed = now.getTime() - startDate.getTime();
+  const timelineProgress = totalDuration > 0 ? Math.min(100, (elapsed / totalDuration) * 100) : 0;
+  const daysRemaining = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+  // Prepare data for AI
+  const reportContext = {
+    projectName: project.name,
+    projectDescription: project.description,
+    projectStatus: project.status,
+    startDate: format(startDate, 'yyyy-MM-dd'),
+    endDate: format(endDate, 'yyyy-MM-dd'),
+    overallProgress: {
+      completionPercentage: completionPercentage.toFixed(1),
+      totalTasks,
+      completedTasks,
+      totalHours: totalHours.toFixed(1),
+      estimatedHours: estimatedHours.toFixed(1),
+      hoursProgress: hoursProgress.toFixed(1),
+    },
+    lastWeek: {
+      tasksCompleted: lastWeekTasks.length,
+      hoursLogged: lastWeekHours.toFixed(1),
+    },
+    currentWeek: {
+      tasksCompleted: currentWeekTasks.length,
+      hoursLogged: currentWeekHours.toFixed(1),
+    },
+    risks: {
+      overdueTasks: overdueTasks.length,
+      highPriorityPending: highPriorityPending.length,
+      blockedTasks: blockedTasks.length,
+    },
+    statusBreakdown,
+    timeline: {
+      progress: timelineProgress.toFixed(1),
+      daysRemaining: daysRemaining > 0 ? daysRemaining : 0,
+      isOverdue: daysRemaining < 0,
+    },
+  };
+
+  // Generate AI report
+  const systemPrompt = `You are an executive assistant preparing a weekly project status report. 
+Your report should be professional, concise, and focused on the past week's activities and current status.
+Focus on:
+1. Executive Summary (1-2 paragraphs highlighting key achievements and status)
+2. This Week's Progress (tasks completed, hours logged, key milestones)
+3. Last Week Comparison (how this week compares to last week)
+4. Risks & Blockers (issues that need immediate attention)
+5. Next Week Priorities (actionable items for the upcoming week)
+
+Format the report in clear sections with headers. Be specific with numbers and percentages.
+Use business language appropriate for weekly status updates.`;
+
+  const userPrompt = `Generate a weekly project status report for "${reportContext.projectName}".
+
+Project Details:
+- Description: ${reportContext.projectDescription}
+- Status: ${reportContext.projectStatus}
+- Timeline: ${reportContext.startDate} to ${reportContext.endDate}
+
+Overall Progress:
+- Task Completion: ${reportContext.overallProgress.completedTasks}/${reportContext.overallProgress.totalTasks} tasks (${reportContext.overallProgress.completionPercentage}%)
+- Hours: ${reportContext.overallProgress.totalHours}h logged / ${reportContext.overallProgress.estimatedHours}h estimated (${reportContext.overallProgress.hoursProgress}%)
+- Timeline: ${reportContext.timeline.progress}% elapsed${reportContext.timeline.isOverdue ? ' (OVERDUE)' : `, ${reportContext.timeline.daysRemaining} days remaining`}
+
+This Week (Current Week):
+- Tasks Completed: ${reportContext.currentWeek.tasksCompleted}
+- Hours Logged: ${reportContext.currentWeek.hoursLogged}h
+
+Last Week:
+- Tasks Completed: ${reportContext.lastWeek.tasksCompleted}
+- Hours Logged: ${reportContext.lastWeek.hoursLogged}h
+
+Current Status Breakdown:
+- Todo: ${reportContext.statusBreakdown.todo}
+- In Progress: ${reportContext.statusBreakdown.in_progress}
+- In Review: ${reportContext.statusBreakdown.review}
+- Completed: ${reportContext.statusBreakdown.completed}
+
+Risks & Blockers:
+- Overdue Tasks: ${reportContext.risks.overdueTasks}
+- High Priority Pending: ${reportContext.risks.highPriorityPending}
+- Blocked in Review: ${reportContext.risks.blockedTasks}
+
+Generate a comprehensive weekly report with all sections mentioned in the system prompt.`;
+
+  try {
+    const response = await deepseekService.generateReport(userPrompt, systemPrompt);
+    return response;
+  } catch (error) {
+    // Fallback to template-based report if AI fails
+    return generateWeeklyTemplateReport(reportContext);
+  }
+}
+
 export async function generateCXOReport(
   projectId: string,
   data: ReportData
@@ -201,6 +376,87 @@ export async function saveReport(
     content: reportContent,
     reportType,
   });
+}
+
+function generateWeeklyTemplateReport(context: any): string {
+  return `WEEKLY PROJECT STATUS REPORT
+${'='.repeat(60)}
+
+PROJECT: ${context.projectName}
+STATUS: ${context.projectStatus.toUpperCase()}
+REPORT DATE: ${format(new Date(), 'MMMM dd, yyyy')}
+WEEK: ${format(new Date(), 'Week of MMMM dd')}
+
+${'='.repeat(60)}
+
+EXECUTIVE SUMMARY
+${'-'.repeat(60)}
+
+The ${context.projectName} project is currently ${context.projectStatus} with ${context.overallProgress.completionPercentage}% of tasks completed. 
+This week, ${context.currentWeek.tasksCompleted} tasks were completed with ${context.currentWeek.hoursLogged} hours logged.
+
+${context.currentWeek.tasksCompleted > context.lastWeek.tasksCompleted 
+  ? `Productivity increased this week compared to last week (${context.lastWeek.tasksCompleted} tasks completed).`
+  : context.currentWeek.tasksCompleted < context.lastWeek.tasksCompleted
+  ? `Productivity decreased this week compared to last week (${context.lastWeek.tasksCompleted} tasks completed).`
+  : 'Productivity remained consistent with last week.'}
+
+${'='.repeat(60)}
+
+THIS WEEK'S PROGRESS
+${'-'.repeat(60)}
+
+Tasks Completed: ${context.currentWeek.tasksCompleted}
+Hours Logged: ${context.currentWeek.hoursLogged}h
+
+${'='.repeat(60)}
+
+LAST WEEK COMPARISON
+${'-'.repeat(60)}
+
+Last Week:
+  • Tasks Completed: ${context.lastWeek.tasksCompleted}
+  • Hours Logged: ${context.lastWeek.hoursLogged}h
+
+This Week:
+  • Tasks Completed: ${context.currentWeek.tasksCompleted}
+  • Hours Logged: ${context.currentWeek.hoursLogged}h
+
+${'='.repeat(60)}
+
+RISKS & BLOCKERS
+${'-'.repeat(60)}
+
+Critical Issues Requiring Attention:
+  • Overdue Tasks: ${context.risks.overdueTasks}
+  • High Priority Pending: ${context.risks.highPriorityPending}
+  • Tasks Blocked in Review: ${context.risks.blockedTasks}
+
+${context.risks.overdueTasks > 0 || context.risks.highPriorityPending > 0 
+  ? '⚠️  Immediate action required to address overdue and high-priority tasks.'
+  : '✓ No critical blockers identified at this time.'}
+
+${'='.repeat(60)}
+
+NEXT WEEK PRIORITIES
+${'-'.repeat(60)}
+
+1. ${context.risks.overdueTasks > 0 
+  ? `Address ${context.risks.overdueTasks} overdue task(s) immediately.`
+  : 'Continue steady progress toward project completion.'}
+
+2. ${context.risks.highPriorityPending > 0 
+  ? `Prioritize completion of ${context.risks.highPriorityPending} high-priority pending task(s).`
+  : 'Maintain focus on high-priority items.'}
+
+3. ${context.risks.blockedTasks > 0 
+  ? `Expedite review process for ${context.risks.blockedTasks} task(s) currently in review.`
+  : 'Maintain efficient review processes.'}
+
+${'='.repeat(60)}
+
+END OF REPORT
+`;
 }
 
 function generateTemplateReport(context: any): string {

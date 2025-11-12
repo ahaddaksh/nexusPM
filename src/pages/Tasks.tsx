@@ -443,6 +443,8 @@ export default function Tasks() {
         return <CheckCircle2 className="h-4 w-4 text-green-600" />;
       case 'in_progress':
         return <PlayCircle className="h-4 w-4 text-blue-600" />;
+      case 'review':
+        return <AlertCircle className="h-4 w-4 text-orange-600" />;
       default:
         return <Circle className="h-4 w-4 text-gray-400" />;
     }
