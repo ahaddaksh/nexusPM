@@ -225,7 +225,7 @@ export default function Dashboard() {
               <CheckCircle className="h-5 w-5 text-gray-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-gray-900">{activeTasks.length}</div>
+              <div className="text-3xl font-bold text-gray-900">{inProgressTasks.length + upcomingTasks.length}</div>
               <p className="text-xs text-gray-500 mt-1">
                 {tasksDueToday.length > 0 ? `${tasksDueToday.length} due today` : 'All caught up'}
               </p>
