@@ -60,6 +60,8 @@ export default function Reports() {
   const [selectedProjectForReport, setSelectedProjectForReport] = useState<string>('');
   const [savedReports, setSavedReports] = useState<any[]>([]);
   const [isLoadingReports, setIsLoadingReports] = useState(false);
+  const [reportsPage, setReportsPage] = useState(1);
+  const reportsPerPage = 10;
 
   useEffect(() => {
     fetchProjects();
@@ -88,6 +90,7 @@ export default function Reports() {
         selectedProject !== 'all' ? selectedProject : undefined
       );
       setSavedReports(reports);
+      setReportsPage(1); // Reset to first page when reports change
     } catch (error) {
       console.error('Error loading saved reports:', error);
       setSavedReports([]);
@@ -400,14 +403,25 @@ export default function Reports() {
   }, [projectStatusData, filteredTimeEntries, filteredTasks]);
 
   const handleGenerateWeeklyReport = async () => {
-    const projectId = selectedProject;
+    let projectId = selectedProject;
+    
+    // If "All Projects" is selected, try to use the first project
     if (!projectId || projectId === 'all') {
-      toast({
-        title: 'Error',
-        description: 'Please select a specific project to generate a weekly report',
-        variant: 'destructive',
-      });
-      return;
+      if (projects.length > 0) {
+        projectId = projects[0].id;
+        setSelectedProject(projectId);
+        toast({
+          title: 'Info',
+          description: `Generating report for "${projects[0].name}" (first project). Select a specific project in filters to choose a different one.`,
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: 'No projects available. Please create a project first.',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     setIsGeneratingReport(true);
@@ -488,7 +502,8 @@ export default function Reports() {
             <Button
               variant="outline"
               onClick={handleGenerateWeeklyReport}
-              disabled={selectedProject === 'all' || isGeneratingReport}
+              disabled={isGeneratingReport}
+              title={selectedProject === 'all' ? 'Please select a specific project from the filters below to generate a weekly report' : 'Generate weekly report for selected project'}
             >
               {isGeneratingReport ? (
                 <>
@@ -521,51 +536,83 @@ export default function Reports() {
                 <p className="text-sm text-gray-500 mt-2">Loading reports...</p>
               </div>
             ) : savedReports.length > 0 ? (
-              <div className="space-y-2">
-                {savedReports.map((report) => {
-                  const reportProject = projects.find(p => p.id === report.projectId);
-                  return (
-                    <div
-                      key={report.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <FileText className="h-4 w-4 text-gray-400" />
-                          <h4 className="font-medium text-sm text-gray-900 truncate">
-                            {report.title}
-                          </h4>
-                          <Badge variant="outline" className="text-xs">
-                            {report.reportType.toUpperCase()}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs text-gray-500">
-                          <span>{reportProject?.name || 'Unknown Project'}</span>
-                          <span>•</span>
-                          <span>{format(new Date(report.createdAt), 'MMM dd, yyyy HH:mm')}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewSavedReport(report)}
+              <>
+                <div className="space-y-2">
+                  {savedReports
+                    .slice((reportsPage - 1) * reportsPerPage, reportsPage * reportsPerPage)
+                    .map((report) => {
+                      const reportProject = projects.find(p => p.id === report.projectId);
+                      return (
+                        <div
+                          key={report.id}
+                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                         >
-                          View
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteReport(report.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          Delete
-                        </Button>
-                      </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <FileText className="h-4 w-4 text-gray-400" />
+                              <h4 className="font-medium text-sm text-gray-900 truncate">
+                                {report.title}
+                              </h4>
+                              <Badge variant="outline" className="text-xs">
+                                {report.reportType.toUpperCase()}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-4 text-xs text-gray-500">
+                              <span>{reportProject?.name || 'Unknown Project'}</span>
+                              <span>•</span>
+                              <span>{format(new Date(report.createdAt), 'MMM dd, yyyy HH:mm')}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewSavedReport(report)}
+                            >
+                              View
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteReport(report.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+                {savedReports.length > reportsPerPage && (
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                    <div className="text-sm text-gray-500">
+                      Showing {(reportsPage - 1) * reportsPerPage + 1} to {Math.min(reportsPage * reportsPerPage, savedReports.length)} of {savedReports.length} reports
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setReportsPage(p => Math.max(1, p - 1))}
+                        disabled={reportsPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm text-gray-500">
+                        Page {reportsPage} of {Math.ceil(savedReports.length / reportsPerPage)}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setReportsPage(p => Math.min(Math.ceil(savedReports.length / reportsPerPage), p + 1))}
+                        disabled={reportsPage >= Math.ceil(savedReports.length / reportsPerPage)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-8">
                 <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
