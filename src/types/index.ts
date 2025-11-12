@@ -85,6 +85,17 @@ export interface AISuggestion {
   createdAt: string;
 }
 
+export interface ProjectReport {
+  id: string;
+  projectId: string;
+  title: string;
+  content: string;
+  reportType: 'cxo' | 'summary' | 'detailed';
+  generatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AuthResponse {
   user: User;
   token: string;

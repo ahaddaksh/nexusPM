@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Project, ProjectCreateData, Task, TaskCreateData, TimeEntry, MeetingProcessData, AISuggestion, Meeting } from '../types';
+import { Project, ProjectCreateData, Task, TaskCreateData, TimeEntry, MeetingProcessData, AISuggestion, Meeting, ProjectReport } from '../types';
 
 // Projects
 export const projectsService = {
@@ -1477,6 +1477,134 @@ export const aiSuggestionsService = {
         rejectionReason: reason,
       })
       .eq('id', suggestionId);
+
+    if (error) throw error;
+  },
+};
+
+// Project Reports Service
+export const projectReportsService = {
+  async getReports(projectId?: string): Promise<ProjectReport[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    let query = supabase
+      .from('project_reports')
+      .select('*')
+      .order('createdat', { ascending: false });
+
+    if (projectId) {
+      query = query.eq('projectid', projectId);
+    }
+
+    // Try lowercase first
+    let result = await query;
+
+    // If that fails, try camelCase
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column')
+    )) {
+      query = supabase
+        .from('project_reports')
+        .select('*')
+        .order('createdAt', { ascending: false });
+
+      if (projectId) {
+        query = query.eq('projectId', projectId);
+      }
+
+      result = await query;
+    }
+
+    if (result.error) throw result.error;
+
+    // Normalize the returned data
+    return (result.data || []).map((r: any) => ({
+      id: r.id,
+      projectId: r.projectId || r.projectid || r.project_id,
+      title: r.title,
+      content: r.content,
+      reportType: r.reportType || r.reporttype || r.report_type || 'cxo',
+      generatedBy: r.generatedBy || r.generatedby || r.generated_by,
+      createdAt: r.createdAt || r.createdat || r.created_at,
+      updatedAt: r.updatedAt || r.updatedat || r.updated_at,
+    }));
+  },
+
+  async createReport(data: {
+    projectId: string;
+    title: string;
+    content: string;
+    reportType?: 'cxo' | 'summary' | 'detailed';
+  }): Promise<ProjectReport> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Try lowercase first
+    let result = await supabase
+      .from('project_reports')
+      .insert({
+        projectid: data.projectId,
+        title: data.title,
+        content: data.content,
+        reporttype: data.reportType || 'cxo',
+        generatedby: user.id,
+        createdat: new Date().toISOString(),
+        updatedat: new Date().toISOString(),
+      })
+      .select('*')
+      .single();
+
+    // If that fails, try camelCase
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column')
+    )) {
+      result = await supabase
+        .from('project_reports')
+        .insert({
+          projectId: data.projectId,
+          title: data.title,
+          content: data.content,
+          reportType: data.reportType || 'cxo',
+          generatedBy: user.id,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+        .select('*')
+        .single();
+    }
+
+    if (result.error) throw result.error;
+
+    // Normalize the returned data
+    const report = result.data;
+    return {
+      id: report.id,
+      projectId: report.projectId || report.projectid || report.project_id,
+      title: report.title,
+      content: report.content,
+      reportType: report.reportType || report.reporttype || report.report_type || 'cxo',
+      generatedBy: report.generatedBy || report.generatedby || report.generated_by,
+      createdAt: report.createdAt || report.createdat || report.created_at,
+      updatedAt: report.updatedAt || report.updatedat || report.updated_at,
+    };
+  },
+
+  async deleteReport(id: string): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('project_reports')
+      .delete()
+      .eq('id', id)
+      .eq('generatedby', user.id); // Only allow deleting own reports
 
     if (error) throw error;
   },

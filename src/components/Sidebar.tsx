@@ -12,7 +12,8 @@ import {
   Menu,
   X,
   Shield,
-  Timer
+  Timer,
+  BarChart3
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
@@ -31,6 +32,7 @@ export default function Sidebar() {
     { path: '/tasks', label: 'Tasks', icon: CheckSquare },
     { path: '/timesheet', label: 'Timesheet', icon: Clock },
     { path: '/meetings', label: 'Meetings', icon: Sparkles },
+    { path: '/reports', label: 'Reports', icon: BarChart3 },
     ...(isAdminOrManager ? [{ path: '/admin', label: 'Admin', icon: Shield }] : []),
   ];
 
