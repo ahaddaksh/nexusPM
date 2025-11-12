@@ -48,6 +48,21 @@ export const useProjects = () => {
     }
   }, []);
 
+  const updateProject = useCallback(async (id: string, updates: Partial<ProjectCreateData & { status?: Project['status']; purpose?: string }>) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const updatedProject = await projectsService.updateProject(id, updates);
+      setProjects(prev => prev.map(p => p.id === id ? updatedProject : p));
+      return updatedProject;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update project');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   return {
     projects,
     isLoading,
@@ -55,5 +70,6 @@ export const useProjects = () => {
     fetchProjects,
     createProject,
     getProject,
+    updateProject,
   };
 };

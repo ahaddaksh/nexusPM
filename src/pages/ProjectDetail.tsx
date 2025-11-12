@@ -376,6 +376,7 @@ export default function ProjectDetail() {
         startDate: projectForm.startDate,
         endDate: projectForm.endDate,
         status: projectForm.status,
+        purpose: projectForm.purpose,
       });
       setIsEditingProject(false);
       await fetchProjects();
@@ -1472,6 +1473,409 @@ export default function ProjectDetail() {
             </Button>
             <Button onClick={() => setIsReportDialogOpen(false)}>Close</Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Risk Dialog */}
+      <Dialog open={isRiskDialogOpen} onOpenChange={setIsRiskDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingRisk ? 'Edit Risk' : 'Add Risk'}</DialogTitle>
+            <DialogDescription>
+              {editingRisk ? 'Update project risk details' : 'Identify and track a new project risk'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="risk-title">Title *</Label>
+              <Input
+                id="risk-title"
+                value={riskForm.title}
+                onChange={(e) => setRiskForm({ ...riskForm, title: e.target.value })}
+                placeholder="Enter risk title"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="risk-description">Description</Label>
+              <Textarea
+                id="risk-description"
+                value={riskForm.description}
+                onChange={(e) => setRiskForm({ ...riskForm, description: e.target.value })}
+                placeholder="Describe the risk"
+                rows={3}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="risk-category">Category</Label>
+                <Select
+                  value={riskForm.riskCategory}
+                  onValueChange={(value: ProjectRisk['riskCategory']) => setRiskForm({ ...riskForm, riskCategory: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="technical">Technical</SelectItem>
+                    <SelectItem value="schedule">Schedule</SelectItem>
+                    <SelectItem value="budget">Budget</SelectItem>
+                    <SelectItem value="resource">Resource</SelectItem>
+                    <SelectItem value="scope">Scope</SelectItem>
+                    <SelectItem value="quality">Quality</SelectItem>
+                    <SelectItem value="external">External</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="risk-status">Status</Label>
+                <Select
+                  value={riskForm.status}
+                  onValueChange={(value: ProjectRisk['status']) => setRiskForm({ ...riskForm, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="identified">Identified</SelectItem>
+                    <SelectItem value="monitoring">Monitoring</SelectItem>
+                    <SelectItem value="mitigated">Mitigated</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="risk-probability">Probability</Label>
+                <Select
+                  value={riskForm.probability}
+                  onValueChange={(value: ProjectRisk['probability']) => setRiskForm({ ...riskForm, probability: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="risk-impact">Impact</Label>
+                <Select
+                  value={riskForm.impact}
+                  onValueChange={(value: ProjectRisk['impact']) => setRiskForm({ ...riskForm, impact: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="risk-mitigation">Mitigation Strategy</Label>
+              <Textarea
+                id="risk-mitigation"
+                value={riskForm.mitigationStrategy}
+                onChange={(e) => setRiskForm({ ...riskForm, mitigationStrategy: e.target.value })}
+                placeholder="Describe how to mitigate this risk"
+                rows={3}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="risk-owner">Mitigation Owner</Label>
+                <Select
+                  value={riskForm.mitigationOwner}
+                  onValueChange={(value) => setRiskForm({ ...riskForm, mitigationOwner: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select owner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {availableUsers.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.firstName} {u.lastName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="risk-target-date">Target Mitigation Date</Label>
+                <Input
+                  id="risk-target-date"
+                  type="date"
+                  value={riskForm.targetMitigationDate}
+                  onChange={(e) => setRiskForm({ ...riskForm, targetMitigationDate: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsRiskDialogOpen(false);
+              setEditingRisk(null);
+            }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!riskForm.title.trim() || !id) return;
+                try {
+                  if (editingRisk) {
+                    await projectRisksService.updateRisk(editingRisk.id, riskForm);
+                    toast({ title: 'Success', description: 'Risk updated' });
+                  } else {
+                    await projectRisksService.createRisk({
+                      projectId: id,
+                      ...riskForm,
+                      mitigationOwner: riskForm.mitigationOwner || null,
+                      targetMitigationDate: riskForm.targetMitigationDate || null,
+                    });
+                    toast({ title: 'Success', description: 'Risk added' });
+                  }
+                  await loadRisks();
+                  setIsRiskDialogOpen(false);
+                  setEditingRisk(null);
+                  setRiskForm({
+                    title: '',
+                    description: '',
+                    riskCategory: 'technical',
+                    probability: 'medium',
+                    impact: 'medium',
+                    status: 'identified',
+                    mitigationStrategy: '',
+                    mitigationOwner: '',
+                    targetMitigationDate: '',
+                  });
+                } catch (error) {
+                  toast({
+                    title: 'Error',
+                    description: error instanceof Error ? error.message : 'Failed to save risk',
+                    variant: 'destructive',
+                  });
+                }
+              }}
+              disabled={!riskForm.title.trim()}
+            >
+              {editingRisk ? 'Update' : 'Create'} Risk
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Budget Item Dialog */}
+      <Dialog open={isBudgetDialogOpen} onOpenChange={setIsBudgetDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingBudgetItem ? 'Edit Budget Item' : 'Add Budget Item'}</DialogTitle>
+            <DialogDescription>
+              {editingBudgetItem ? 'Update budget item details' : 'Add a new budget line item'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="budget-category">Category *</Label>
+              <Input
+                id="budget-category"
+                value={budgetForm.category}
+                onChange={(e) => setBudgetForm({ ...budgetForm, category: e.target.value })}
+                placeholder="e.g., Development, Marketing, Infrastructure"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="budget-description">Description</Label>
+              <Textarea
+                id="budget-description"
+                value={budgetForm.description}
+                onChange={(e) => setBudgetForm({ ...budgetForm, description: e.target.value })}
+                placeholder="Describe this budget item"
+                rows={3}
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="budget-amount">Budgeted Amount *</Label>
+                <Input
+                  id="budget-amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={budgetForm.budgetedAmount}
+                  onChange={(e) => setBudgetForm({ ...budgetForm, budgetedAmount: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="budget-actual">Actual Amount</Label>
+                <Input
+                  id="budget-actual"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={budgetForm.actualAmount}
+                  onChange={(e) => setBudgetForm({ ...budgetForm, actualAmount: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="budget-currency">Currency</Label>
+                <Select
+                  value={budgetForm.currency}
+                  onValueChange={(value) => setBudgetForm({ ...budgetForm, currency: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USD">USD ($)</SelectItem>
+                    <SelectItem value="EUR">EUR (€)</SelectItem>
+                    <SelectItem value="GBP">GBP (£)</SelectItem>
+                    <SelectItem value="BDT">BDT (৳)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsBudgetDialogOpen(false);
+              setEditingBudgetItem(null);
+            }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!budgetForm.category.trim() || !id) return;
+                try {
+                  if (editingBudgetItem) {
+                    await projectBudgetService.updateBudgetItem(editingBudgetItem.id, budgetForm);
+                    toast({ title: 'Success', description: 'Budget item updated' });
+                  } else {
+                    await projectBudgetService.createBudgetItem({
+                      projectId: id,
+                      ...budgetForm,
+                    });
+                    toast({ title: 'Success', description: 'Budget item added' });
+                  }
+                  await loadBudgetItems();
+                  setIsBudgetDialogOpen(false);
+                  setEditingBudgetItem(null);
+                  setBudgetForm({
+                    category: '',
+                    description: '',
+                    budgetedAmount: 0,
+                    actualAmount: 0,
+                    currency: 'USD',
+                  });
+                } catch (error) {
+                  toast({
+                    title: 'Error',
+                    description: error instanceof Error ? error.message : 'Failed to save budget item',
+                    variant: 'destructive',
+                  });
+                }
+              }}
+              disabled={!budgetForm.category.trim()}
+            >
+              {editingBudgetItem ? 'Update' : 'Create'} Budget Item
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Milestone Dialog */}
+      <Dialog open={isMilestoneDialogOpen} onOpenChange={setIsMilestoneDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingMilestone ? 'Edit Milestone' : 'Add Milestone'}</DialogTitle>
+            <DialogDescription>
+              {editingMilestone ? 'Update milestone details' : 'Add a new project milestone'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="milestone-name">Name *</Label>
+              <Input
+                id="milestone-name"
+                value={milestoneForm.name}
+                onChange={(e) => setMilestoneForm({ ...milestoneForm, name: e.target.value })}
+                placeholder="e.g., Phase 1 Complete, Beta Release"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="milestone-description">Description</Label>
+              <Textarea
+                id="milestone-description"
+                value={milestoneForm.description}
+                onChange={(e) => setMilestoneForm({ ...milestoneForm, description: e.target.value })}
+                placeholder="Describe this milestone"
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="milestone-date">Target Date *</Label>
+              <Input
+                id="milestone-date"
+                type="date"
+                value={milestoneForm.targetDate}
+                onChange={(e) => setMilestoneForm({ ...milestoneForm, targetDate: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsMilestoneDialogOpen(false);
+              setEditingMilestone(null);
+            }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!milestoneForm.name.trim() || !milestoneForm.targetDate || !id) return;
+                try {
+                  if (editingMilestone) {
+                    await projectMilestonesService.updateMilestone(editingMilestone.id, milestoneForm);
+                    toast({ title: 'Success', description: 'Milestone updated' });
+                  } else {
+                    await projectMilestonesService.createMilestone({
+                      projectId: id,
+                      ...milestoneForm,
+                    });
+                    toast({ title: 'Success', description: 'Milestone added' });
+                  }
+                  await loadMilestones();
+                  setIsMilestoneDialogOpen(false);
+                  setEditingMilestone(null);
+                  setMilestoneForm({
+                    name: '',
+                    description: '',
+                    targetDate: '',
+                  });
+                } catch (error) {
+                  toast({
+                    title: 'Error',
+                    description: error instanceof Error ? error.message : 'Failed to save milestone',
+                    variant: 'destructive',
+                  });
+                }
+              }}
+              disabled={!milestoneForm.name.trim() || !milestoneForm.targetDate}
+            >
+              {editingMilestone ? 'Update' : 'Create'} Milestone
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       </div>

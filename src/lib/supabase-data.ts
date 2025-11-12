@@ -208,6 +208,95 @@ export const projectsService = {
       resources: project.resources || null,
     };
   },
+
+  async updateProject(id: string, updates: Partial<ProjectCreateData & { status?: Project['status']; purpose?: string }>): Promise<Project> {
+    // Try lowercase first
+    const updateDataLower: any = {
+      updatedat: new Date().toISOString(),
+    };
+    if (updates.name !== undefined) updateDataLower.name = updates.name;
+    if (updates.description !== undefined) updateDataLower.description = updates.description;
+    if (updates.startDate !== undefined) updateDataLower.startdate = updates.startDate;
+    if (updates.endDate !== undefined) updateDataLower.enddate = updates.endDate;
+    if (updates.status !== undefined) updateDataLower.status = updates.status;
+    if ((updates as any).purpose !== undefined) updateDataLower.purpose = (updates as any).purpose;
+
+    let result = await supabase
+      .from('projects')
+      .update(updateDataLower)
+      .eq('id', id)
+      .select('id, name, description, status, startdate, enddate, createdby, createdat, updatedat, purpose, resources')
+      .single();
+
+    // If lowercase fails, try camelCase
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
+      const updateDataCamel: any = {
+        updatedAt: new Date().toISOString(),
+      };
+      if (updates.name !== undefined) updateDataCamel.name = updates.name;
+      if (updates.description !== undefined) updateDataCamel.description = updates.description;
+      if (updates.startDate !== undefined) updateDataCamel.startDate = updates.startDate;
+      if (updates.endDate !== undefined) updateDataCamel.endDate = updates.endDate;
+      if (updates.status !== undefined) updateDataCamel.status = updates.status;
+      if ((updates as any).purpose !== undefined) updateDataCamel.purpose = (updates as any).purpose;
+
+      result = await supabase
+        .from('projects')
+        .update(updateDataCamel)
+        .eq('id', id)
+        .select('id, name, description, status, startDate, endDate, createdBy, createdAt, updatedAt, purpose, resources')
+        .single();
+    }
+
+    // If that also fails, try select('*')
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
+      const updateDataCamel: any = {
+        updatedAt: new Date().toISOString(),
+      };
+      if (updates.name !== undefined) updateDataCamel.name = updates.name;
+      if (updates.description !== undefined) updateDataCamel.description = updates.description;
+      if (updates.startDate !== undefined) updateDataCamel.startDate = updates.startDate;
+      if (updates.endDate !== undefined) updateDataCamel.endDate = updates.endDate;
+      if (updates.status !== undefined) updateDataCamel.status = updates.status;
+      if ((updates as any).purpose !== undefined) updateDataCamel.purpose = (updates as any).purpose;
+
+      result = await supabase
+        .from('projects')
+        .update(updateDataCamel)
+        .eq('id', id)
+        .select('*')
+        .single();
+    }
+
+    if (result.error) throw result.error;
+
+    const project = result.data;
+    return {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      status: project.status,
+      startDate: project.startDate || project.startdate || project.start_date,
+      endDate: project.endDate || project.enddate || project.end_date,
+      createdBy: project.createdBy || project.createdby || project.created_by,
+      createdAt: project.createdAt || project.createdat || project.created_at,
+      updatedAt: project.updatedAt || project.updatedat || project.updated_at,
+      purpose: project.purpose || null,
+      resources: project.resources || null,
+    };
+  },
 };
 
 // Tasks
