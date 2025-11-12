@@ -254,11 +254,18 @@ export default function ProjectDetail() {
         description: 'Member added to project',
       });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add member';
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to add member',
+        description: errorMessage,
         variant: 'destructive',
       });
+      // Don't close the dialog if it's a duplicate member error, so user can try again
+      if (errorMessage.includes('already a member')) {
+        // Keep dialog open
+      } else {
+        setIsMemberDialogOpen(false);
+      }
     }
   };
 

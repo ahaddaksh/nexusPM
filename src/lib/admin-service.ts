@@ -817,11 +817,26 @@ export const adminService = {
           result.error.message?.includes('relationship')
         )) {
           // Fallback: Get project members and users separately
-          const membersResult = await supabase
+          // Try camelCase first
+          let membersResult = await supabase
             .from('project_members')
             .select('*')
-            .eq('projectid', projectId)
-            .order('createdat', { ascending: false });
+            .eq('projectId', projectId)
+            .order('createdAt', { ascending: false });
+          
+          // If camelCase fails, try lowercase
+          if (membersResult.error && (
+            membersResult.error.code === 'PGRST204' || 
+            membersResult.error.code === '42703' ||
+            membersResult.error.status === 400 ||
+            membersResult.error.message?.includes('column')
+          )) {
+            membersResult = await supabase
+              .from('project_members')
+              .select('*')
+              .eq('projectid', projectId)
+              .order('createdat', { ascending: false });
+          }
           
           if (membersResult.error) {
             if (membersResult.error.code === '42P01' || membersResult.error.code === 'PGRST202' || membersResult.error.message?.includes('does not exist')) {
@@ -832,33 +847,53 @@ export const adminService = {
           }
           
           // Get user details separately
-          const userIds = (membersResult.data || []).map((pm: any) => pm.userid || pm.userId || pm.user_id).filter(Boolean);
+          const userIds = (membersResult.data || []).map((pm: any) => pm.userId || pm.userid || pm.user_id).filter(Boolean);
           if (userIds.length === 0) return [];
           
-          const usersResult = await supabase
+          // Try camelCase first for users query
+          let usersResult = await supabase
             .from('users')
-            .select('id, email, firstname, lastname, role, isactive')
+            .select('id, email, firstName, lastName, role, isActive')
             .in('id', userIds);
+          
+          // If camelCase fails, try lowercase
+          if (usersResult.error && (
+            usersResult.error.code === 'PGRST204' || 
+            usersResult.error.code === '42703' ||
+            usersResult.error.status === 400 ||
+            usersResult.error.message?.includes('column')
+          )) {
+            usersResult = await supabase
+              .from('users')
+              .select('id, email, firstname, lastname, role, isactive')
+              .in('id', userIds);
+          }
+          
+          if (usersResult.error) {
+            console.error('Error fetching users:', usersResult.error);
+            return [];
+          }
           
           const usersMap = new Map((usersResult.data || []).map((u: any) => [
             u.id,
             {
               id: u.id,
               email: u.email,
-              firstName: u.firstname || u.firstName,
-              lastName: u.lastname || u.lastName,
+              firstName: u.firstName || u.firstname,
+              lastName: u.lastName || u.lastname,
               role: u.role,
-              isActive: u.isactive || u.isActive,
+              isActive: u.isActive || u.isactive,
             }
           ]));
           
           return (membersResult.data || []).map((pm: any) => {
-            const user = usersMap.get(pm.userid || pm.userId || pm.user_id);
+            const userId = pm.userId || pm.userid || pm.user_id;
+            const user = usersMap.get(userId);
             return {
               ...user,
               role: pm.role,
-              addedBy: pm.addedby || pm.addedBy || pm.added_by,
-              createdAt: pm.createdat || pm.createdAt || pm.created_at,
+              addedBy: pm.addedBy || pm.addedby || pm.added_by,
+              createdAt: pm.createdAt || pm.createdat || pm.created_at,
             };
           }).filter(u => u.id); // Filter out entries without user data
         } else {
