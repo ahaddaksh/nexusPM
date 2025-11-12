@@ -238,9 +238,12 @@ export default function MeetingDetail() {
     const defaultDueDate = new Date();
     defaultDueDate.setDate(defaultDueDate.getDate() + 7); // Default to 7 days from now
     
+    // Use AI-generated description if available, otherwise fall back to originalText
+    const defaultDescription = (suggestion as any).suggestedDescription || suggestion.originalText;
+    
     setApprovalForm({
       title: suggestion.suggestedTask,
-      description: suggestion.originalText,
+      description: defaultDescription,
       projectId: meeting?.projectId || '',
       priority: 'medium',
       assignedTo: currentUser?.id || '',

@@ -4,13 +4,13 @@ import { Project, ProjectCreateData, Task, TaskCreateData, TimeEntry, MeetingPro
 // Projects
 export const projectsService = {
   async getProjects(): Promise<Project[]> {
-    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
+    // Try camelCase first (migrations use quoted identifiers)
     let result = await supabase
       .from('projects')
-      .select('id, name, description, status, startdate, enddate, createdby, createdat, updatedat, purpose, resources')
-      .order('createdat', { ascending: false });
+      .select('id, name, description, status, startDate, endDate, createdBy, createdAt, updatedAt, purpose, resources')
+      .order('createdAt', { ascending: false });
     
-    // If lowercase fails, try camelCase
+    // If camelCase fails, try lowercase (PostgreSQL lowercases unquoted identifiers)
     // Check for column-related errors: PGRST204, 400 status, or column name in error message
     if (result.error && (
       result.error.code === 'PGRST204' || 
@@ -21,8 +21,8 @@ export const projectsService = {
     )) {
       result = await supabase
         .from('projects')
-        .select('id, name, description, status, startDate, endDate, createdBy, createdAt, updatedAt, purpose, resources')
-        .order('createdAt', { ascending: false });
+        .select('id, name, description, status, startdate, enddate, createdby, createdat, updatedat, purpose, resources')
+        .order('createdat', { ascending: false });
     }
     
     // If that also fails, try select('*')
@@ -152,14 +152,14 @@ export const projectsService = {
   },
 
   async getProject(id: string): Promise<Project> {
-    // Try lowercase first
+    // Try camelCase first (migrations use quoted identifiers)
     let result = await supabase
       .from('projects')
-      .select('id, name, description, status, startdate, enddate, createdby, createdat, updatedat, purpose, resources')
+      .select('id, name, description, status, startDate, endDate, createdBy, createdAt, updatedAt, purpose, resources')
       .eq('id', id)
       .single();
     
-    // If lowercase fails, try camelCase
+    // If camelCase fails, try lowercase (PostgreSQL lowercases unquoted identifiers)
     // Check for column-related errors: PGRST204, 400 status, or column name in error message
     if (result.error && (
       result.error.code === 'PGRST204' || 
@@ -170,7 +170,7 @@ export const projectsService = {
     )) {
       result = await supabase
         .from('projects')
-        .select('id, name, description, status, startDate, endDate, createdBy, createdAt, updatedAt, purpose, resources')
+        .select('id, name, description, status, startdate, enddate, createdby, createdat, updatedat, purpose, resources')
         .eq('id', id)
         .single();
     }
@@ -210,25 +210,25 @@ export const projectsService = {
   },
 
   async updateProject(id: string, updates: Partial<ProjectCreateData & { status?: Project['status']; purpose?: string }>): Promise<Project> {
-    // Try lowercase first
-    const updateDataLower: any = {
-      updatedat: new Date().toISOString(),
+    // Try camelCase first (migrations use quoted identifiers)
+    const updateDataCamel: any = {
+      updatedAt: new Date().toISOString(),
     };
-    if (updates.name !== undefined) updateDataLower.name = updates.name;
-    if (updates.description !== undefined) updateDataLower.description = updates.description;
-    if (updates.startDate !== undefined) updateDataLower.startdate = updates.startDate;
-    if (updates.endDate !== undefined) updateDataLower.enddate = updates.endDate;
-    if (updates.status !== undefined) updateDataLower.status = updates.status;
-    if ((updates as any).purpose !== undefined) updateDataLower.purpose = (updates as any).purpose;
+    if (updates.name !== undefined) updateDataCamel.name = updates.name;
+    if (updates.description !== undefined) updateDataCamel.description = updates.description;
+    if (updates.startDate !== undefined) updateDataCamel.startDate = updates.startDate;
+    if (updates.endDate !== undefined) updateDataCamel.endDate = updates.endDate;
+    if (updates.status !== undefined) updateDataCamel.status = updates.status;
+    if ((updates as any).purpose !== undefined) updateDataCamel.purpose = (updates as any).purpose;
 
     let result = await supabase
       .from('projects')
-      .update(updateDataLower)
+      .update(updateDataCamel)
       .eq('id', id)
-      .select('id, name, description, status, startdate, enddate, createdby, createdat, updatedat, purpose, resources')
+      .select('id, name, description, status, startDate, endDate, createdBy, createdAt, updatedAt, purpose, resources')
       .single();
 
-    // If lowercase fails, try camelCase
+    // If camelCase fails, try lowercase (PostgreSQL lowercases unquoted identifiers)
     if (result.error && (
       result.error.code === 'PGRST204' || 
       result.error.code === '42703' ||
@@ -236,21 +236,21 @@ export const projectsService = {
       result.error.message?.includes('column') ||
       result.error.message?.includes('does not exist')
     )) {
-      const updateDataCamel: any = {
-        updatedAt: new Date().toISOString(),
+      const updateDataLower: any = {
+        updatedat: new Date().toISOString(),
       };
-      if (updates.name !== undefined) updateDataCamel.name = updates.name;
-      if (updates.description !== undefined) updateDataCamel.description = updates.description;
-      if (updates.startDate !== undefined) updateDataCamel.startDate = updates.startDate;
-      if (updates.endDate !== undefined) updateDataCamel.endDate = updates.endDate;
-      if (updates.status !== undefined) updateDataCamel.status = updates.status;
-      if ((updates as any).purpose !== undefined) updateDataCamel.purpose = (updates as any).purpose;
+      if (updates.name !== undefined) updateDataLower.name = updates.name;
+      if (updates.description !== undefined) updateDataLower.description = updates.description;
+      if (updates.startDate !== undefined) updateDataLower.startdate = updates.startDate;
+      if (updates.endDate !== undefined) updateDataLower.enddate = updates.endDate;
+      if (updates.status !== undefined) updateDataLower.status = updates.status;
+      if ((updates as any).purpose !== undefined) updateDataLower.purpose = (updates as any).purpose;
 
       result = await supabase
         .from('projects')
-        .update(updateDataCamel)
+        .update(updateDataLower)
         .eq('id', id)
-        .select('id, name, description, status, startDate, endDate, createdBy, createdAt, updatedAt, purpose, resources')
+        .select('id, name, description, status, startdate, enddate, createdby, createdat, updatedat, purpose, resources')
         .single();
     }
 

@@ -127,22 +127,22 @@ export const projectRisksService = {
   },
 
   async updateRisk(id: string, updates: Partial<ProjectRisk>): Promise<ProjectRisk> {
-    // Try lowercase first
-    const updateDataLower: any = {};
-    if (updates.title !== undefined) updateDataLower.title = updates.title;
-    if (updates.description !== undefined) updateDataLower.description = updates.description;
-    if (updates.riskCategory !== undefined) updateDataLower.riskcategory = updates.riskCategory;
-    if (updates.probability !== undefined) updateDataLower.probability = updates.probability;
-    if (updates.impact !== undefined) updateDataLower.impact = updates.impact;
-    if (updates.status !== undefined) updateDataLower.status = updates.status;
-    if (updates.mitigationStrategy !== undefined) updateDataLower.mitigationstrategy = updates.mitigationStrategy;
-    if (updates.mitigationOwner !== undefined) updateDataLower.mitigationowner = updates.mitigationOwner;
-    if (updates.targetMitigationDate !== undefined) updateDataLower.targetmitigationdate = updates.targetMitigationDate;
-    if (updates.actualMitigationDate !== undefined) updateDataLower.actualmitigationdate = updates.actualMitigationDate;
+    // Try camelCase first (migrations use quoted identifiers)
+    const updateDataCamel: any = {};
+    if (updates.title !== undefined) updateDataCamel.title = updates.title;
+    if (updates.description !== undefined) updateDataCamel.description = updates.description;
+    if (updates.riskCategory !== undefined) updateDataCamel.riskCategory = updates.riskCategory;
+    if (updates.probability !== undefined) updateDataCamel.probability = updates.probability;
+    if (updates.impact !== undefined) updateDataCamel.impact = updates.impact;
+    if (updates.status !== undefined) updateDataCamel.status = updates.status;
+    if (updates.mitigationStrategy !== undefined) updateDataCamel.mitigationStrategy = updates.mitigationStrategy;
+    if (updates.mitigationOwner !== undefined) updateDataCamel.mitigationOwner = updates.mitigationOwner;
+    if (updates.targetMitigationDate !== undefined) updateDataCamel.targetMitigationDate = updates.targetMitigationDate;
+    if (updates.actualMitigationDate !== undefined) updateDataCamel.actualMitigationDate = updates.actualMitigationDate;
 
     let result = await supabase
       .from('project_risks')
-      .update(updateDataLower)
+      .update(updateDataCamel)
       .eq('id', id)
       .select('*')
       .single();
@@ -153,21 +153,21 @@ export const projectRisksService = {
       result.error.status === 400 ||
       result.error.message?.includes('column')
     )) {
-      const updateDataCamel: any = {};
-      if (updates.title !== undefined) updateDataCamel.title = updates.title;
-      if (updates.description !== undefined) updateDataCamel.description = updates.description;
-      if (updates.riskCategory !== undefined) updateDataCamel.riskCategory = updates.riskCategory;
-      if (updates.probability !== undefined) updateDataCamel.probability = updates.probability;
-      if (updates.impact !== undefined) updateDataCamel.impact = updates.impact;
-      if (updates.status !== undefined) updateDataCamel.status = updates.status;
-      if (updates.mitigationStrategy !== undefined) updateDataCamel.mitigationStrategy = updates.mitigationStrategy;
-      if (updates.mitigationOwner !== undefined) updateDataCamel.mitigationOwner = updates.mitigationOwner;
-      if (updates.targetMitigationDate !== undefined) updateDataCamel.targetMitigationDate = updates.targetMitigationDate;
-      if (updates.actualMitigationDate !== undefined) updateDataCamel.actualMitigationDate = updates.actualMitigationDate;
+      const updateDataLower: any = {};
+      if (updates.title !== undefined) updateDataLower.title = updates.title;
+      if (updates.description !== undefined) updateDataLower.description = updates.description;
+      if (updates.riskCategory !== undefined) updateDataLower.riskcategory = updates.riskCategory;
+      if (updates.probability !== undefined) updateDataLower.probability = updates.probability;
+      if (updates.impact !== undefined) updateDataLower.impact = updates.impact;
+      if (updates.status !== undefined) updateDataLower.status = updates.status;
+      if (updates.mitigationStrategy !== undefined) updateDataLower.mitigationstrategy = updates.mitigationStrategy;
+      if (updates.mitigationOwner !== undefined) updateDataLower.mitigationowner = updates.mitigationOwner;
+      if (updates.targetMitigationDate !== undefined) updateDataLower.targetmitigationdate = updates.targetMitigationDate;
+      if (updates.actualMitigationDate !== undefined) updateDataLower.actualmitigationdate = updates.actualMitigationDate;
 
       result = await supabase
         .from('project_risks')
-        .update(updateDataCamel)
+        .update(updateDataLower)
         .eq('id', id)
         .select('*')
         .single();
@@ -209,25 +209,25 @@ export const projectRisksService = {
 // Project Budget Service
 export const projectBudgetService = {
   async getBudgetItems(projectId: string): Promise<ProjectBudgetItem[]> {
-    // Try lowercase first
+    // Try camelCase first (migrations use quoted identifiers)
     let result = await supabase
       .from('project_budget_items')
       .select('*')
-      .eq('projectid', projectId)
-      .order('createdat', { ascending: false });
+      .eq('projectId', projectId)
+      .order('createdAt', { ascending: false });
 
     if (result.error && (
       result.error.code === 'PGRST204' || 
       result.error.code === '42703' ||
       result.error.status === 400 ||
       result.error.message?.includes('column') ||
-      result.error.message?.includes('projectId')
+      result.error.message?.includes('projectid')
     )) {
       result = await supabase
         .from('project_budget_items')
         .select('*')
-        .eq('projectId', projectId)
-        .order('createdAt', { ascending: false });
+        .eq('projectid', projectId)
+        .order('createdat', { ascending: false });
     }
 
     // If table doesn't exist, return empty array
@@ -259,17 +259,17 @@ export const projectBudgetService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    // Try lowercase first
+    // Try camelCase first (migrations use quoted identifiers)
     let result = await supabase
       .from('project_budget_items')
       .insert({
-        projectid: data.projectId,
+        projectId: data.projectId,
         category: data.category,
         description: data.description,
-        budgetedamount: data.budgetedAmount,
-        actualamount: data.actualAmount || 0,
+        budgetedAmount: data.budgetedAmount,
+        actualAmount: data.actualAmount || 0,
         currency: data.currency || 'USD',
-        createdby: user.id,
+        createdBy: user.id,
       })
       .select('*')
       .single();
@@ -283,13 +283,13 @@ export const projectBudgetService = {
       result = await supabase
         .from('project_budget_items')
         .insert({
-          projectId: data.projectId,
+          projectid: data.projectId,
           category: data.category,
           description: data.description,
-          budgetedAmount: data.budgetedAmount,
-          actualAmount: data.actualAmount || 0,
+          budgetedamount: data.budgetedAmount,
+          actualamount: data.actualAmount || 0,
           currency: data.currency || 'USD',
-          createdBy: user.id,
+          createdby: user.id,
         })
         .select('*')
         .single();
@@ -313,17 +313,17 @@ export const projectBudgetService = {
   },
 
   async updateBudgetItem(id: string, updates: Partial<ProjectBudgetItem>): Promise<ProjectBudgetItem> {
-    // Try lowercase first
-    const updateDataLower: any = {};
-    if (updates.category !== undefined) updateDataLower.category = updates.category;
-    if (updates.description !== undefined) updateDataLower.description = updates.description;
-    if (updates.budgetedAmount !== undefined) updateDataLower.budgetedamount = updates.budgetedAmount;
-    if (updates.actualAmount !== undefined) updateDataLower.actualamount = updates.actualAmount;
-    if (updates.currency !== undefined) updateDataLower.currency = updates.currency;
+    // Try camelCase first (migrations use quoted identifiers)
+    const updateDataCamel: any = {};
+    if (updates.category !== undefined) updateDataCamel.category = updates.category;
+    if (updates.description !== undefined) updateDataCamel.description = updates.description;
+    if (updates.budgetedAmount !== undefined) updateDataCamel.budgetedAmount = updates.budgetedAmount;
+    if (updates.actualAmount !== undefined) updateDataCamel.actualAmount = updates.actualAmount;
+    if (updates.currency !== undefined) updateDataCamel.currency = updates.currency;
 
     let result = await supabase
       .from('project_budget_items')
-      .update(updateDataLower)
+      .update(updateDataCamel)
       .eq('id', id)
       .select('*')
       .single();
@@ -334,16 +334,16 @@ export const projectBudgetService = {
       result.error.status === 400 ||
       result.error.message?.includes('column')
     )) {
-      const updateDataCamel: any = {};
-      if (updates.category !== undefined) updateDataCamel.category = updates.category;
-      if (updates.description !== undefined) updateDataCamel.description = updates.description;
-      if (updates.budgetedAmount !== undefined) updateDataCamel.budgetedAmount = updates.budgetedAmount;
-      if (updates.actualAmount !== undefined) updateDataCamel.actualAmount = updates.actualAmount;
-      if (updates.currency !== undefined) updateDataCamel.currency = updates.currency;
+      const updateDataLower: any = {};
+      if (updates.category !== undefined) updateDataLower.category = updates.category;
+      if (updates.description !== undefined) updateDataLower.description = updates.description;
+      if (updates.budgetedAmount !== undefined) updateDataLower.budgetedamount = updates.budgetedAmount;
+      if (updates.actualAmount !== undefined) updateDataLower.actualamount = updates.actualAmount;
+      if (updates.currency !== undefined) updateDataLower.currency = updates.currency;
 
       result = await supabase
         .from('project_budget_items')
-        .update(updateDataCamel)
+        .update(updateDataLower)
         .eq('id', id)
         .select('*')
         .single();
@@ -379,25 +379,25 @@ export const projectBudgetService = {
 // Project Milestones Service
 export const projectMilestonesService = {
   async getMilestones(projectId: string): Promise<ProjectMilestone[]> {
-    // Try lowercase first
+    // Try camelCase first (migrations use quoted identifiers)
     let result = await supabase
       .from('project_milestones')
       .select('*')
-      .eq('projectid', projectId)
-      .order('targetdate', { ascending: true });
+      .eq('projectId', projectId)
+      .order('targetDate', { ascending: true });
 
     if (result.error && (
       result.error.code === 'PGRST204' || 
       result.error.code === '42703' ||
       result.error.status === 400 ||
       result.error.message?.includes('column') ||
-      result.error.message?.includes('projectId')
+      result.error.message?.includes('projectid')
     )) {
       result = await supabase
         .from('project_milestones')
         .select('*')
-        .eq('projectId', projectId)
-        .order('targetDate', { ascending: true });
+        .eq('projectid', projectId)
+        .order('targetdate', { ascending: true });
     }
 
     // If table doesn't exist, return empty array
@@ -429,15 +429,15 @@ export const projectMilestonesService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    // Try lowercase first
+    // Try camelCase first (migrations use quoted identifiers)
     let result = await supabase
       .from('project_milestones')
       .insert({
-        projectid: data.projectId,
+        projectId: data.projectId,
         name: data.name,
         description: data.description,
-        targetdate: data.targetDate,
-        createdby: user.id,
+        targetDate: data.targetDate,
+        createdBy: user.id,
       })
       .select('*')
       .single();
@@ -451,11 +451,11 @@ export const projectMilestonesService = {
       result = await supabase
         .from('project_milestones')
         .insert({
-          projectId: data.projectId,
+          projectid: data.projectId,
           name: data.name,
           description: data.description,
-          targetDate: data.targetDate,
-          createdBy: user.id,
+          targetdate: data.targetDate,
+          createdby: user.id,
         })
         .select('*')
         .single();
@@ -479,17 +479,17 @@ export const projectMilestonesService = {
   },
 
   async updateMilestone(id: string, updates: Partial<ProjectMilestone>): Promise<ProjectMilestone> {
-    // Try lowercase first
-    const updateDataLower: any = {};
-    if (updates.name !== undefined) updateDataLower.name = updates.name;
-    if (updates.description !== undefined) updateDataLower.description = updates.description;
-    if (updates.targetDate !== undefined) updateDataLower.targetdate = updates.targetDate;
-    if (updates.completedDate !== undefined) updateDataLower.completeddate = updates.completedDate;
-    if (updates.status !== undefined) updateDataLower.status = updates.status;
+    // Try camelCase first (migrations use quoted identifiers)
+    const updateDataCamel: any = {};
+    if (updates.name !== undefined) updateDataCamel.name = updates.name;
+    if (updates.description !== undefined) updateDataCamel.description = updates.description;
+    if (updates.targetDate !== undefined) updateDataCamel.targetDate = updates.targetDate;
+    if (updates.completedDate !== undefined) updateDataCamel.completedDate = updates.completedDate;
+    if (updates.status !== undefined) updateDataCamel.status = updates.status;
 
     let result = await supabase
       .from('project_milestones')
-      .update(updateDataLower)
+      .update(updateDataCamel)
       .eq('id', id)
       .select('*')
       .single();
@@ -500,16 +500,16 @@ export const projectMilestonesService = {
       result.error.status === 400 ||
       result.error.message?.includes('column')
     )) {
-      const updateDataCamel: any = {};
-      if (updates.name !== undefined) updateDataCamel.name = updates.name;
-      if (updates.description !== undefined) updateDataCamel.description = updates.description;
-      if (updates.targetDate !== undefined) updateDataCamel.targetDate = updates.targetDate;
-      if (updates.completedDate !== undefined) updateDataCamel.completedDate = updates.completedDate;
-      if (updates.status !== undefined) updateDataCamel.status = updates.status;
+      const updateDataLower: any = {};
+      if (updates.name !== undefined) updateDataLower.name = updates.name;
+      if (updates.description !== undefined) updateDataLower.description = updates.description;
+      if (updates.targetDate !== undefined) updateDataLower.targetdate = updates.targetDate;
+      if (updates.completedDate !== undefined) updateDataLower.completeddate = updates.completedDate;
+      if (updates.status !== undefined) updateDataLower.status = updates.status;
 
       result = await supabase
         .from('project_milestones')
-        .update(updateDataCamel)
+        .update(updateDataLower)
         .eq('id', id)
         .select('*')
         .single();
