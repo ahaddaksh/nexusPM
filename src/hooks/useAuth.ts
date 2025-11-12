@@ -180,7 +180,7 @@ export const useAuth = () => {
           const userData = await fetchUserFromDatabase(session.user);
           setUser(userData);
         } else {
-          setUser(response.user);
+      setUser(response.user);
         }
       }
       return response;
@@ -206,7 +206,7 @@ export const useAuth = () => {
           const userData = await fetchUserFromDatabase(session.user);
           setUser(userData);
         } else {
-          setUser(response.user);
+      setUser(response.user);
         }
       }
       return response;

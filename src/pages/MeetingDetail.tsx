@@ -569,7 +569,7 @@ export default function MeetingDetail() {
                       {pendingSuggestions.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
                           <p>No pending suggestions</p>
-                        </div>
+                            </div>
                       ) : (
                         pendingSuggestions.map((suggestion) => (
                           <SuggestionCard 
@@ -586,7 +586,7 @@ export default function MeetingDetail() {
                       {approvedSuggestions.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
                           <p>No approved suggestions</p>
-                        </div>
+                            </div>
                       ) : (
                         approvedSuggestions.map((suggestion) => (
                           <SuggestionCard 

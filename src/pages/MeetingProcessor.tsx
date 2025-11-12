@@ -203,9 +203,9 @@ export default function MeetingProcessor() {
           </div>
 
           <div className="flex gap-2">
-            <Button onClick={handleProcessMeeting} disabled={isLoading}>
-              {isLoading ? 'Processing...' : 'Process Meeting Notes'}
-            </Button>
+          <Button onClick={handleProcessMeeting} disabled={isLoading}>
+            {isLoading ? 'Processing...' : 'Process Meeting Notes'}
+          </Button>
             {(meetingTitle || meetingNotes || currentMeetingId) && (
               <Button 
                 variant="outline" 

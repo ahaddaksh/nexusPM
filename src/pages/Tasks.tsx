@@ -580,7 +580,7 @@ export default function Tasks() {
                     tags={availableTags}
                     selectedTags={taskForm.selectedTags}
                     onSelectionChange={(tagIds) => setTaskForm({ ...taskForm, selectedTags: tagIds })}
-                  />
+                    />
                   <div className="flex justify-end gap-2">
                     <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                       Cancel
@@ -1048,7 +1048,7 @@ export default function Tasks() {
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <CardTitle className="text-lg line-clamp-2 mb-2">{task.title}</CardTitle>
+                            <CardTitle className="text-lg line-clamp-2 mb-2">{task.title}</CardTitle>
                                 </TooltipTrigger>
                                 <TooltipContent>
                                   <p className="max-w-xs">{task.title}</p>
@@ -1171,17 +1171,17 @@ export default function Tasks() {
                           {task.estimatedHours > 0 && (
                             <>
                               <div className="w-full bg-gray-200 rounded-full h-1.5 relative overflow-hidden">
-                                <div
+                              <div
                                   className={`h-1.5 rounded-full transition-all ${
                                     hasExceeded120Percent ? 'bg-red-600' :
                                     hasExceededEstimate ? 'bg-orange-500' :
-                                    progressPercentage >= 80 ? 'bg-yellow-500' :
+                                  progressPercentage >= 80 ? 'bg-yellow-500' :
                                     progressPercentage >= 50 ? 'bg-blue-500' :
                                     'bg-green-500'
-                                  }`}
-                                  style={{ width: `${Math.min(100, progressPercentage)}%` }}
-                                />
-                              </div>
+                                }`}
+                                style={{ width: `${Math.min(100, progressPercentage)}%` }}
+                              />
+                            </div>
                               {hasExceededEstimate && (
                                 <p className={`text-xs mt-1 ${
                                   hasExceeded120Percent ? 'text-red-600 font-semibold' : 'text-orange-600'

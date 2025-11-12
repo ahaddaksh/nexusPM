@@ -121,10 +121,10 @@ export default function TaskDetail() {
       // If that also fails, try select('*')
       if (result.error && (result.error.code === 'PGRST204' || result.error.message?.includes('column'))) {
         result = await supabase
-          .from('tasks')
-          .select('*')
-          .eq('id', id)
-          .single();
+        .from('tasks')
+        .select('*')
+        .eq('id', id)
+        .single();
       }
 
       if (result.error) throw result.error;
@@ -134,10 +134,10 @@ export default function TaskDetail() {
       const normalizedTask = {
         id: data.id,
         projectId: data.projectId || data.projectid || data.project_id || null,
-        title: data.title,
+          title: data.title,
         description: data.description,
         status: data.status,
-        priority: data.priority,
+          priority: data.priority,
         estimatedHours: data.estimatedHours || data.estimatedhours || data.estimated_hours || 0,
         assignedTo: data.assignedTo || data.assignedto || data.assigned_to,
         createdBy: data.createdBy || data.createdby || data.created_by,
@@ -881,8 +881,8 @@ export default function TaskDetail() {
                             )}
                           </div>
                           <div className="flex items-center gap-2">
-                            <div className="text-sm font-medium">
-                              {Math.floor((entry.durationMinutes || 0) / 60)}h {(entry.durationMinutes || 0) % 60}m
+                          <div className="text-sm font-medium">
+                            {Math.floor((entry.durationMinutes || 0) / 60)}h {(entry.durationMinutes || 0) % 60}m
                             </div>
                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <Button

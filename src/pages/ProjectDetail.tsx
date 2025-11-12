@@ -1069,7 +1069,7 @@ export default function ProjectDetail() {
                               <CardDescription className="line-clamp-2 text-sm">
                           {task.description}
                               </CardDescription>
-                            )}
+                      )}
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
                             {getStatusIcon(task.status)}
@@ -1179,9 +1179,9 @@ export default function ProjectDetail() {
                               handleStartTimer(task.id);
                             }
                           }}
-                        >
+                      >
                           {isTaskTimerActive ? (
-                            <>
+                          <>
                               <Square className="h-3 w-3 mr-1" />
                               Stop Timer
                           </>

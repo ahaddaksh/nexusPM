@@ -34,9 +34,9 @@ export const projectsService = {
       result.error.message?.includes('does not exist')
     )) {
       result = await supabase
-        .from('projects')
-        .select('*')
-        .order('createdAt', { ascending: false });
+      .from('projects')
+      .select('*')
+      .order('createdAt', { ascending: false });
     }
 
     if (result.error) throw result.error;
@@ -103,7 +103,7 @@ export const projectsService = {
         .from('projects')
         .insert(insertDataCamel)
         .select('id, name, description, status, startDate, endDate, createdBy, createdAt, updatedAt, purpose, resources')
-        .single();
+      .single();
     }
     
     // If that also fails, try select('*')
@@ -184,10 +184,10 @@ export const projectsService = {
       result.error.message?.includes('does not exist')
     )) {
       result = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', id)
-        .single();
+      .from('projects')
+      .select('*')
+      .eq('id', id)
+      .single();
     }
 
     if (result.error) throw result.error;
@@ -255,14 +255,14 @@ export const tasksService = {
       result.error.message?.includes('does not exist')
     )) {
       query = supabase
-        .from('tasks')
-        .select('*')
-        .order('createdAt', { ascending: false });
+      .from('tasks')
+      .select('*')
+      .order('createdAt', { ascending: false });
 
-      if (projectId) {
-        query = query.eq('projectId', projectId);
-      }
-      
+    if (projectId) {
+      query = query.eq('projectId', projectId);
+    }
+
       result = await query;
     }
 
@@ -339,7 +339,7 @@ export const tasksService = {
         .from('tasks')
         .insert(insertDataCamel)
         .select('id, projectId, title, description, status, priority, estimatedHours, assignedTo, createdBy, dueDate, createdAt, updatedAt, meetingId, reviewerId')
-        .single();
+      .single();
     }
     
     // If that also fails, try select('*')
@@ -424,9 +424,9 @@ export const tasksService = {
       result = await supabase
         .from('tasks')
         .update(updateDataCamel)
-        .eq('id', id)
+      .eq('id', id)
         .select('id, projectId, title, description, status, priority, estimatedHours, assignedTo, createdBy, dueDate, createdAt, updatedAt, meetingId, reviewerId')
-        .single();
+      .single();
     }
     
     // If that also fails, try select('*')
@@ -785,10 +785,10 @@ export const meetingsService = {
       result.error.message?.includes('does not exist')
     )) {
       result = await supabase
-        .from('ai_suggestions')
-        .select('*')
-        .eq('meetingId', meetingId)
-        .order('createdAt', { ascending: false });
+      .from('ai_suggestions')
+      .select('*')
+      .eq('meetingId', meetingId)
+      .order('createdAt', { ascending: false });
     }
 
     if (result.error) throw result.error;
@@ -878,10 +878,10 @@ export const aiSuggestionsService = {
       result.error.message?.includes('does not exist')
     )) {
       result = await supabase
-        .from('ai_suggestions')
-        .select('*')
-        .eq('status', 'pending')
-        .order('createdAt', { ascending: false });
+      .from('ai_suggestions')
+      .select('*')
+      .eq('status', 'pending')
+      .order('createdAt', { ascending: false });
     }
 
     if (result.error) throw result.error;
@@ -1028,19 +1028,19 @@ export const aiSuggestionsService = {
       result.error.message?.includes('does not exist')
     )) {
       const suggestionsToInsertCamel = suggestions.map(s => ({
-        meetingId: meeting.id,
-        originalText: s.originalText,
-        suggestedTask: s.suggestedTask,
-        confidenceScore: s.confidenceScore,
-        status: s.status || 'pending',
-        reviewedBy: null,
-        reviewedAt: null,
-        rejectionReason: null,
-        createdAt: new Date().toISOString(),
-      }));
-      
+      meetingId: meeting.id,
+      originalText: s.originalText,
+      suggestedTask: s.suggestedTask,
+      confidenceScore: s.confidenceScore,
+      status: s.status || 'pending',
+      reviewedBy: null,
+      reviewedAt: null,
+      rejectionReason: null,
+      createdAt: new Date().toISOString(),
+    }));
+
       result = await supabase
-        .from('ai_suggestions')
+      .from('ai_suggestions')
         .insert(suggestionsToInsertCamel)
         .select('id, meetingId, originalText, suggestedTask, confidenceScore, status, reviewedBy, reviewedAt, rejectionReason, createdAt');
       
@@ -1138,7 +1138,7 @@ export const aiSuggestionsService = {
       existingResult = await supabase
         .from('ai_suggestions')
         .select('suggestedTask, originalText, status')
-        .eq('meetingId', meetingId)
+      .eq('meetingId', meetingId)
         .in('status', ['approved', 'pending']);
     }
     
@@ -1255,19 +1255,19 @@ export const aiSuggestionsService = {
       result.error.message?.includes('does not exist')
     )) {
       const suggestionsToInsertCamel = filteredSuggestions.map(s => ({
-        meetingId: meeting.id,
-        originalText: s.originalText,
-        suggestedTask: s.suggestedTask,
-        confidenceScore: s.confidenceScore,
-        status: s.status || 'pending',
-        reviewedBy: null,
-        reviewedAt: null,
-        rejectionReason: null,
-        createdAt: new Date().toISOString(),
-      }));
-      
+      meetingId: meeting.id,
+      originalText: s.originalText,
+      suggestedTask: s.suggestedTask,
+      confidenceScore: s.confidenceScore,
+      status: s.status || 'pending',
+      reviewedBy: null,
+      reviewedAt: null,
+      rejectionReason: null,
+      createdAt: new Date().toISOString(),
+    }));
+
       result = await supabase
-        .from('ai_suggestions')
+      .from('ai_suggestions')
         .insert(suggestionsToInsertCamel)
         .select('id, meetingId, originalText, suggestedTask, confidenceScore, status, reviewedBy, reviewedAt, rejectionReason, createdAt');
       
@@ -1378,7 +1378,7 @@ export const aiSuggestionsService = {
 
     // Link task to meeting by updating task with meetingId
     if (suggestion.meetingId) {
-      await supabase
+    await supabase
         .from('tasks')
         .update({ meetingId: suggestion.meetingId })
         .eq('id', task.id);
