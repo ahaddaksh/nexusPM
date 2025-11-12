@@ -10,7 +10,8 @@ import AppLayout from '@/components/AppLayout';
 import { useToast } from '@/components/ui/use-toast';
 import { useAISuggestions } from '@/hooks/useAISuggestions';
 import { useProjects } from '@/hooks/useProjects';
-import { AISuggestion } from '@/types';
+import { useMeetings } from '@/hooks/useMeetings';
+import { AISuggestion, Meeting } from '@/types';
 
 export default function MeetingProcessor() {
   const navigate = useNavigate();
@@ -21,8 +22,10 @@ export default function MeetingProcessor() {
   const [approvingSuggestionId, setApprovingSuggestionId] = useState<string | null>(null);
   const [selectedProjectForApproval, setSelectedProjectForApproval] = useState<string>('');
   const [currentMeetingId, setCurrentMeetingId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const { suggestions, isLoading, error, processMeeting, approveSuggestion, rejectSuggestion } = useAISuggestions();
   const { projects, fetchProjects } = useProjects();
+  const { createMeeting } = useMeetings();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -39,6 +42,45 @@ export default function MeetingProcessor() {
     loadData();
   }, [fetchProjects]);
 
+  const handleSaveMeeting = async () => {
+    if (!meetingNotes.trim() || !meetingTitle.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter meeting title and meeting notes',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const meeting = await createMeeting({
+        title: meetingTitle,
+        notes: meetingNotes,
+        projectId: selectedProjectId || undefined,
+        meetingDate: meetingDate,
+      });
+      
+      setCurrentMeetingId(meeting.id);
+      
+      toast({
+        title: 'Meeting Saved',
+        description: 'Your meeting notes have been saved successfully.',
+      });
+    } catch (err) {
+      console.error('Failed to save meeting:', err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      
+      toast({
+        title: 'Error Saving Meeting',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleProcessMeeting = async () => {
     if (!meetingNotes.trim() || !meetingTitle.trim()) {
       toast({
@@ -49,18 +91,44 @@ export default function MeetingProcessor() {
       return;
     }
 
+    // If meeting hasn't been saved yet, save it first
+    let meetingId = currentMeetingId;
+    if (!meetingId) {
+      try {
+        const meeting = await createMeeting({
+          title: meetingTitle,
+          notes: meetingNotes,
+          projectId: selectedProjectId || undefined,
+          meetingDate: meetingDate,
+        });
+        meetingId = meeting.id;
+        setCurrentMeetingId(meeting.id);
+        
+        toast({
+          title: 'Meeting Saved',
+          description: 'Meeting saved. Processing with AI...',
+        });
+      } catch (err) {
+        console.error('Failed to save meeting:', err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        
+        toast({
+          title: 'Error Saving Meeting',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     try {
       const newSuggestions = await processMeeting({
         title: meetingTitle,
         notes: meetingNotes,
         projectId: selectedProjectId || undefined,
         meetingDate: meetingDate,
+        meetingId: meetingId, // Use existing meeting ID
       });
-      
-      // Track the meeting ID from the first suggestion (all suggestions from same meeting)
-      if (newSuggestions.length > 0 && newSuggestions[0].meetingId) {
-        setCurrentMeetingId(newSuggestions[0].meetingId);
-      }
       
       toast({
         title: 'Success',
@@ -203,9 +271,19 @@ export default function MeetingProcessor() {
           </div>
 
           <div className="flex gap-2">
-          <Button onClick={handleProcessMeeting} disabled={isLoading}>
-            {isLoading ? 'Processing...' : 'Process Meeting Notes'}
-          </Button>
+            <Button 
+              onClick={handleSaveMeeting} 
+              disabled={isSaving || isLoading}
+              variant="outline"
+            >
+              {isSaving ? 'Saving...' : 'Save Meeting'}
+            </Button>
+            <Button 
+              onClick={handleProcessMeeting} 
+              disabled={isLoading || isSaving}
+            >
+              {isLoading ? 'Processing...' : 'Process Meeting Notes'}
+            </Button>
             {(meetingTitle || meetingNotes || currentMeetingId) && (
               <Button 
                 variant="outline" 
@@ -221,6 +299,11 @@ export default function MeetingProcessor() {
               </Button>
             )}
           </div>
+          {currentMeetingId && (
+            <p className="text-xs text-muted-foreground">
+              ✓ Meeting saved. You can process it with AI or edit and save again.
+            </p>
+          )}
         </CardContent>
       </Card>
 

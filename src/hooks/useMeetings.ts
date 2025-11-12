@@ -46,6 +46,21 @@ export const useMeetings = () => {
     }
   }, []);
 
+  const createMeeting = useCallback(async (data: { title: string; notes: string; meetingDate: string; projectId?: string }): Promise<Meeting> => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const meeting = await meetingsService.createMeeting(data);
+      setMeetings(prev => [meeting, ...prev]);
+      return meeting;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create meeting');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   return {
     meetings,
     isLoading,
@@ -53,6 +68,7 @@ export const useMeetings = () => {
     fetchMeetings,
     getMeeting,
     getMeetingSuggestions,
+    createMeeting,
   };
 };
 

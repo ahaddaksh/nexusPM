@@ -752,6 +752,61 @@ export const meetingsService = {
     return data;
   },
 
+  async createMeeting(data: { title: string; notes: string; meetingDate: string; projectId?: string }): Promise<Meeting> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
+    let result = await supabase
+      .from('meetings')
+      .insert({
+        projectid: data.projectId || null,
+        title: data.title,
+        notes: data.notes,
+        meetingdate: data.meetingDate,
+        createdby: user.id,
+        createdat: new Date().toISOString(),
+      })
+      .select('*')
+      .single();
+
+    // If that fails, try camelCase
+    if (result.error && (
+      result.error.code === 'PGRST204' || 
+      result.error.code === '42703' ||
+      result.error.status === 400 ||
+      result.error.message?.includes('column') ||
+      result.error.message?.includes('does not exist')
+    )) {
+      result = await supabase
+        .from('meetings')
+        .insert({
+          projectId: data.projectId || null,
+          title: data.title,
+          notes: data.notes,
+          meetingDate: data.meetingDate,
+          createdBy: user.id,
+          createdAt: new Date().toISOString(),
+        })
+        .select('*')
+        .single();
+    }
+
+    if (result.error) throw result.error;
+
+    // Normalize the returned data
+    const meeting = result.data;
+    return {
+      id: meeting.id,
+      projectId: meeting.projectId || meeting.projectid || meeting.project_id || null,
+      title: meeting.title,
+      notes: meeting.notes,
+      meetingDate: meeting.meetingDate || meeting.meetingdate || meeting.meeting_date,
+      createdBy: meeting.createdBy || meeting.createdby || meeting.created_by,
+      createdAt: meeting.createdAt || meeting.createdat || meeting.created_at,
+    };
+  },
+
   async getMeetingSuggestions(meetingId: string): Promise<AISuggestion[]> {
     // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
     let result = await supabase
@@ -935,7 +990,7 @@ export const aiSuggestionsService = {
     });
   },
 
-  async processMeeting(data: MeetingProcessData, existingTaskTitles?: string[]): Promise<AISuggestion[]> {
+  async processMeeting(data: MeetingProcessData & { meetingId?: string }, existingTaskTitles?: string[]): Promise<AISuggestion[]> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
@@ -955,27 +1010,34 @@ export const aiSuggestionsService = {
     
     const suggestions = await deepseekService.processMeetingNotes(data.notes, data.projectId, existingTasks);
 
-    // Save meeting (projectId is optional)
-    const { data: meeting, error: meetingError } = await supabase
-      .from('meetings')
-      .insert({
-        projectId: data.projectId || null,
-        title: data.title,
-        notes: data.notes,
-        meetingDate: data.meetingDate,
-        createdBy: user.id,
-        createdAt: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    // Use existing meeting ID if provided, otherwise create a new meeting
+    let meetingId: string;
+    if (data.meetingId) {
+      meetingId = data.meetingId;
+    } else {
+      // Save meeting (projectId is optional)
+      const { data: meeting, error: meetingError } = await supabase
+        .from('meetings')
+        .insert({
+          projectId: data.projectId || null,
+          title: data.title,
+          notes: data.notes,
+          meetingDate: data.meetingDate,
+          createdBy: user.id,
+          createdAt: new Date().toISOString(),
+        })
+        .select()
+        .single();
 
-    if (meetingError) throw meetingError;
+      if (meetingError) throw meetingError;
+      meetingId = meeting.id;
+    }
 
     // Save suggestions (remove any temporary IDs, let Supabase generate UUIDs)
     // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
     // Note: suggestedDescription may not exist in the database yet, so we'll try without it first
     const suggestionsToInsertLower = suggestions.map(s => ({
-      meetingid: meeting.id,
+      meetingid: meetingId,
       originaltext: s.originalText,
       suggestedtask: s.suggestedTask,
       confidencescore: s.confidenceScore,
@@ -1028,7 +1090,7 @@ export const aiSuggestionsService = {
       result.error.message?.includes('does not exist')
     )) {
       const suggestionsToInsertCamel = suggestions.map(s => ({
-      meetingId: meeting.id,
+      meetingId: meetingId,
       originalText: s.originalText,
       suggestedTask: s.suggestedTask,
       confidenceScore: s.confidenceScore,
@@ -1068,7 +1130,7 @@ export const aiSuggestionsService = {
       result.error.message?.includes('does not exist')
     )) {
       const suggestionsToInsertCamel = suggestions.map(s => ({
-        meetingId: meeting.id,
+        meetingId: meetingId,
         originalText: s.originalText,
         suggestedTask: s.suggestedTask,
         confidenceScore: s.confidenceScore,
