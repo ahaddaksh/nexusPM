@@ -24,7 +24,9 @@ import {
   Sparkles,
   Loader2,
   Download,
-  Calendar
+  Calendar,
+  Share2,
+  FileSpreadsheet
 } from 'lucide-react';
 import { format, subWeeks, subMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachWeekOfInterval, eachMonthOfInterval } from 'date-fns';
 import { Chart, ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
@@ -32,6 +34,13 @@ import { Pie, PieChart, Cell, Bar, BarChart, XAxis, YAxis, CartesianGrid, Legend
 import { adminService } from '@/lib/admin-service';
 import { Team, Department, User as UserType } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { 
+  exportProjectStatusReport, 
+  exportTaskStatisticsReport, 
+  exportProductivityReport,
+  exportResourceAllocationReport
+} from '@/lib/export-utils';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 export default function Reports() {
   const navigate = useNavigate();
@@ -402,6 +411,84 @@ export default function Reports() {
     };
   }, [projectStatusData, filteredTimeEntries, filteredTasks]);
 
+  // Resource Allocation Calculations
+  const resourceAllocationData = useMemo(() => {
+    if (!isManagerOrAdmin) return [];
+
+    const allocation: Array<{
+      resourceName: string;
+      projectName: string;
+      hoursAllocated: number;
+      hoursLogged: number;
+      utilizationPercentage: number;
+      workloadStatus: string;
+    }> = [];
+
+    // Calculate per user per project
+    filteredTasks.forEach(task => {
+      const project = filteredProjects.find(p => p.id === task.projectId);
+      if (!project) return;
+
+      const user = allUsers.find(u => u.id === task.assignedTo);
+      if (!user) return;
+
+      const taskTimeEntries = filteredTimeEntries.filter(entry => entry.taskId === task.id);
+      const hoursLogged = taskTimeEntries.reduce((sum, entry) => sum + (entry.durationMinutes || 0), 0);
+      const hoursAllocated = (task.estimatedHours || 0) * 60;
+      const utilizationPercentage = hoursAllocated > 0 ? (hoursLogged / hoursAllocated) * 100 : 0;
+
+      // Determine workload status
+      let workloadStatus = 'Underutilized';
+      if (utilizationPercentage > 120) {
+        workloadStatus = 'Overloaded';
+      } else if (utilizationPercentage >= 80 && utilizationPercentage <= 120) {
+        workloadStatus = 'Optimal';
+      }
+
+      allocation.push({
+        resourceName: `${user.firstName} ${user.lastName}`,
+        projectName: project.name,
+        hoursAllocated,
+        hoursLogged,
+        utilizationPercentage,
+        workloadStatus,
+      });
+    });
+
+    // Aggregate by user and project
+    const aggregated = allocation.reduce((acc, item) => {
+      const key = `${item.resourceName}-${item.projectName}`;
+      if (!acc[key]) {
+        acc[key] = {
+          resourceName: item.resourceName,
+          projectName: item.projectName,
+          hoursAllocated: 0,
+          hoursLogged: 0,
+        };
+      }
+      acc[key].hoursAllocated += item.hoursAllocated;
+      acc[key].hoursLogged += item.hoursLogged;
+      return acc;
+    }, {} as Record<string, { resourceName: string; projectName: string; hoursAllocated: number; hoursLogged: number }>);
+
+    // Calculate utilization and workload status for aggregated data
+    return Object.values(aggregated).map(item => {
+      const utilizationPercentage = item.hoursAllocated > 0 ? (item.hoursLogged / item.hoursAllocated) * 100 : 0;
+      let workloadStatus = 'Underutilized';
+      if (utilizationPercentage > 120) {
+        workloadStatus = 'Overloaded';
+      } else if (utilizationPercentage >= 80 && utilizationPercentage <= 120) {
+        workloadStatus = 'Optimal';
+      }
+
+      return {
+        ...item,
+        utilizationPercentage,
+        workloadStatus,
+      };
+    }).sort((a, b) => b.hoursLogged - a.hoursLogged);
+  }, [filteredTasks, filteredProjects, filteredTimeEntries, allUsers, isManagerOrAdmin]);
+
   const handleGenerateWeeklyReport = async () => {
     let projectId = selectedProject;
     
@@ -716,10 +803,59 @@ export default function Reports() {
               <TrendingUp className="h-4 w-4 mr-2" />
               Productivity
             </TabsTrigger>
+            <TabsTrigger value="resource-allocation">
+              <Users className="h-4 w-4 mr-2" />
+              Resource Allocation
+            </TabsTrigger>
           </TabsList>
 
           {/* Project Status Tab */}
           <TabsContent value="project-status" className="space-y-4">
+            <div className="flex justify-end">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => {
+                    try {
+                      exportProjectStatusReport(projectStatusData, 'csv', 'project-status');
+                      toast({ title: 'Success', description: 'Project status report exported as CSV' });
+                    } catch (error) {
+                      toast({ title: 'Error', description: 'Failed to export report', variant: 'destructive' });
+                    }
+                  }}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Export as CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    try {
+                      exportProjectStatusReport(projectStatusData, 'excel', 'project-status');
+                      toast({ title: 'Success', description: 'Project status report exported as Excel' });
+                    } catch (error) {
+                      toast({ title: 'Error', description: 'Failed to export report', variant: 'destructive' });
+                    }
+                  }}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Export as Excel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    try {
+                      exportProjectStatusReport(projectStatusData, 'pdf', 'project-status');
+                      toast({ title: 'Success', description: 'Opening PDF preview...' });
+                    } catch (error) {
+                      toast({ title: 'Error', description: 'Failed to export report', variant: 'destructive' });
+                    }
+                  }}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Export as PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {projectStatusData.map(project => (
                 <Card key={project.id}>
@@ -821,6 +957,51 @@ export default function Reports() {
 
           {/* Task Statistics Tab */}
           <TabsContent value="task-stats" className="space-y-4">
+            <div className="flex justify-end">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => {
+                    try {
+                      exportTaskStatisticsReport(taskStatistics, 'csv', 'task-statistics');
+                      toast({ title: 'Success', description: 'Task statistics exported as CSV' });
+                    } catch (error) {
+                      toast({ title: 'Error', description: 'Failed to export report', variant: 'destructive' });
+                    }
+                  }}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Export as CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    try {
+                      exportTaskStatisticsReport(taskStatistics, 'excel', 'task-statistics');
+                      toast({ title: 'Success', description: 'Task statistics exported as Excel' });
+                    } catch (error) {
+                      toast({ title: 'Error', description: 'Failed to export report', variant: 'destructive' });
+                    }
+                  }}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Export as Excel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    try {
+                      exportTaskStatisticsReport(taskStatistics, 'pdf', 'task-statistics');
+                      toast({ title: 'Success', description: 'Opening PDF preview...' });
+                    } catch (error) {
+                      toast({ title: 'Error', description: 'Failed to export report', variant: 'destructive' });
+                    }
+                  }}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Export as PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <Card>
                 <CardHeader className="pb-2">
@@ -1041,6 +1222,51 @@ export default function Reports() {
 
           {/* Productivity Tab */}
           <TabsContent value="productivity" className="space-y-4">
+            <div className="flex justify-end">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => {
+                    try {
+                      exportProductivityReport(productivityData, 'csv', 'productivity');
+                      toast({ title: 'Success', description: 'Productivity report exported as CSV' });
+                    } catch (error) {
+                      toast({ title: 'Error', description: 'Failed to export report', variant: 'destructive' });
+                    }
+                  }}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Export as CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    try {
+                      exportProductivityReport(productivityData, 'excel', 'productivity');
+                      toast({ title: 'Success', description: 'Productivity report exported as Excel' });
+                    } catch (error) {
+                      toast({ title: 'Error', description: 'Failed to export report', variant: 'destructive' });
+                    }
+                  }}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Export as Excel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    try {
+                      exportProductivityReport(productivityData, 'pdf', 'productivity');
+                      toast({ title: 'Success', description: 'Opening PDF preview...' });
+                    } catch (error) {
+                      toast({ title: 'Error', description: 'Failed to export report', variant: 'destructive' });
+                    }
+                  }}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Export as PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <Tabs defaultValue="project" className="space-y-4">
               <TabsList>
                 <TabsTrigger value="project">Project</TabsTrigger>
