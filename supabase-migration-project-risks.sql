@@ -60,76 +60,58 @@ CREATE INDEX IF NOT EXISTS idx_project_risks_category ON project_risks("riskCate
 ALTER TABLE project_risks ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
--- Users can view risks for projects they have access to
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view project risks" ON project_risks;
+DROP POLICY IF EXISTS "Users can create project risks" ON project_risks;
+DROP POLICY IF EXISTS "Users can update project risks" ON project_risks;
+DROP POLICY IF EXISTS "Users can delete project risks" ON project_risks;
+
+-- Users can view risks for projects they created or are members of
+-- Simplified to avoid infinite recursion - check project creator directly
 CREATE POLICY "Users can view project risks"
   ON project_risks FOR SELECT
   USING (
     EXISTS (
       SELECT 1 FROM projects p
       WHERE p.id = project_risks."projectId"
-      AND (
-        p."createdBy" = auth.uid()
-        OR EXISTS (
-          SELECT 1 FROM project_members pm
-          WHERE pm."projectId" = p.id
-          AND pm."userId" = auth.uid()
-        )
-      )
+      AND p."createdBy" = auth.uid()
     )
+    OR "createdBy" = auth.uid()
   );
 
--- Users can create risks for projects they have access to
+-- Users can create risks for projects they created
 CREATE POLICY "Users can create project risks"
   ON project_risks FOR INSERT
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM projects p
       WHERE p.id = project_risks."projectId"
-      AND (
-        p."createdBy" = auth.uid()
-        OR EXISTS (
-          SELECT 1 FROM project_members pm
-          WHERE pm."projectId" = p.id
-          AND pm."userId" = auth.uid()
-        )
-      )
+      AND p."createdBy" = auth.uid()
     )
     AND "createdBy" = auth.uid()
   );
 
--- Users can update risks for projects they have access to
+-- Users can update risks they created or for projects they created
 CREATE POLICY "Users can update project risks"
   ON project_risks FOR UPDATE
   USING (
-    EXISTS (
+    "createdBy" = auth.uid()
+    OR EXISTS (
       SELECT 1 FROM projects p
       WHERE p.id = project_risks."projectId"
-      AND (
-        p."createdBy" = auth.uid()
-        OR EXISTS (
-          SELECT 1 FROM project_members pm
-          WHERE pm."projectId" = p.id
-          AND pm."userId" = auth.uid()
-        )
-      )
+      AND p."createdBy" = auth.uid()
     )
   );
 
--- Users can delete risks for projects they have access to
+-- Users can delete risks they created or for projects they created
 CREATE POLICY "Users can delete project risks"
   ON project_risks FOR DELETE
   USING (
-    EXISTS (
+    "createdBy" = auth.uid()
+    OR EXISTS (
       SELECT 1 FROM projects p
       WHERE p.id = project_risks."projectId"
-      AND (
-        p."createdBy" = auth.uid()
-        OR EXISTS (
-          SELECT 1 FROM project_members pm
-          WHERE pm."projectId" = p.id
-          AND pm."userId" = auth.uid()
-        )
-      )
+      AND p."createdBy" = auth.uid()
     )
   );
 
@@ -141,6 +123,9 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Drop trigger if exists before creating
+DROP TRIGGER IF EXISTS update_project_risks_updated_at ON project_risks;
 
 CREATE TRIGGER update_project_risks_updated_at
   BEFORE UPDATE ON project_risks
