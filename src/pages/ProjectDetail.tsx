@@ -19,8 +19,10 @@ import { useTimeTracking } from '@/hooks/useTimeTracking';
 import { useToast } from '@/components/ui/use-toast';
 import { usersService } from '@/lib/users-service';
 import { adminService } from '@/lib/admin-service';
-import { Task, Project, User, Tag } from '@/types';
+import { Task, Project, User, Tag, ProjectRisk, ProjectBudgetItem, ProjectMilestone } from '@/types';
 import { TagSelector } from '@/components/TagSelector';
+import { GanttChart } from '@/components/GanttChart';
+import { projectRisksService, projectBudgetService, projectMilestonesService } from '@/lib/project-features-service';
 import { 
   Play, 
   Clock, 
@@ -43,7 +45,11 @@ import {
   Trash2,
   Sparkles,
   Loader2,
-  FileText
+  FileText,
+  AlertTriangle,
+  DollarSign,
+  Flag,
+  BarChart3
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -99,6 +105,43 @@ export default function ProjectDetail() {
   const [cxoReport, setCxoReport] = useState<string | null>(null);
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
 
+  // Risks, Budget, Milestones
+  const [risks, setRisks] = useState<ProjectRisk[]>([]);
+  const [budgetItems, setBudgetItems] = useState<ProjectBudgetItem[]>([]);
+  const [milestones, setMilestones] = useState<ProjectMilestone[]>([]);
+  const [isRiskDialogOpen, setIsRiskDialogOpen] = useState(false);
+  const [isBudgetDialogOpen, setIsBudgetDialogOpen] = useState(false);
+  const [isMilestoneDialogOpen, setIsMilestoneDialogOpen] = useState(false);
+  const [editingRisk, setEditingRisk] = useState<ProjectRisk | null>(null);
+  const [editingBudgetItem, setEditingBudgetItem] = useState<ProjectBudgetItem | null>(null);
+  const [editingMilestone, setEditingMilestone] = useState<ProjectMilestone | null>(null);
+  
+  const [riskForm, setRiskForm] = useState({
+    title: '',
+    description: '',
+    riskCategory: 'technical' as ProjectRisk['riskCategory'],
+    probability: 'medium' as ProjectRisk['probability'],
+    impact: 'medium' as ProjectRisk['impact'],
+    status: 'identified' as ProjectRisk['status'],
+    mitigationStrategy: '',
+    mitigationOwner: '',
+    targetMitigationDate: '',
+  });
+
+  const [budgetForm, setBudgetForm] = useState({
+    category: '',
+    description: '',
+    budgetedAmount: 0,
+    actualAmount: 0,
+    currency: 'USD',
+  });
+
+  const [milestoneForm, setMilestoneForm] = useState({
+    name: '',
+    description: '',
+    targetDate: '',
+  });
+
   useEffect(() => {
     loadData();
   }, [id]);
@@ -113,8 +156,44 @@ export default function ProjectDetail() {
       await loadTags();
       await loadProjectTags();
       await loadProjectMembers();
+      await loadRisks();
+      await loadBudgetItems();
+      await loadMilestones();
     } catch (error) {
       console.error('Error loading data:', error);
+    }
+  };
+
+  const loadRisks = async () => {
+    if (!id) return;
+    try {
+      const data = await projectRisksService.getRisks(id);
+      setRisks(data);
+    } catch (error) {
+      console.error('Error loading risks:', error);
+      setRisks([]);
+    }
+  };
+
+  const loadBudgetItems = async () => {
+    if (!id) return;
+    try {
+      const data = await projectBudgetService.getBudgetItems(id);
+      setBudgetItems(data);
+    } catch (error) {
+      console.error('Error loading budget items:', error);
+      setBudgetItems([]);
+    }
+  };
+
+  const loadMilestones = async () => {
+    if (!id) return;
+    try {
+      const data = await projectMilestonesService.getMilestones(id);
+      setMilestones(data);
+    } catch (error) {
+      console.error('Error loading milestones:', error);
+      setMilestones([]);
     }
   };
 
@@ -627,9 +706,25 @@ export default function ProjectDetail() {
         </CardHeader>
           <CardContent>
             <Tabs defaultValue="overview" className="w-full">
-              <TabsList>
+              <TabsList className="grid grid-cols-6 w-full">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="risks">
+                  <AlertTriangle className="h-4 w-4 mr-1" />
+                  Risks
+                </TabsTrigger>
+                <TabsTrigger value="budget">
+                  <DollarSign className="h-4 w-4 mr-1" />
+                  Budget
+                </TabsTrigger>
+                <TabsTrigger value="milestones">
+                  <Flag className="h-4 w-4 mr-1" />
+                  Milestones
+                </TabsTrigger>
+                <TabsTrigger value="gantt">
+                  <BarChart3 className="h-4 w-4 mr-1" />
+                  Gantt
+                </TabsTrigger>
               </TabsList>
               
               <TabsContent value="overview" className="space-y-4 mt-4">

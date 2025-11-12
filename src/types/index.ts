@@ -219,3 +219,48 @@ export interface NotificationPreferences {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface ProjectRisk {
+  id: string;
+  projectId: string;
+  title: string;
+  description?: string;
+  riskCategory: 'technical' | 'schedule' | 'budget' | 'resource' | 'scope' | 'quality' | 'external' | 'other';
+  probability: 'low' | 'medium' | 'high' | 'critical';
+  impact: 'low' | 'medium' | 'high' | 'critical';
+  riskScore: number;
+  status: 'identified' | 'monitoring' | 'mitigated' | 'closed';
+  mitigationStrategy?: string;
+  mitigationOwner?: string | null;
+  targetMitigationDate?: string | null;
+  actualMitigationDate?: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectBudgetItem {
+  id: string;
+  projectId: string;
+  category: string;
+  description?: string;
+  budgetedAmount: number;
+  actualAmount: number;
+  currency: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectMilestone {
+  id: string;
+  projectId: string;
+  name: string;
+  description?: string;
+  targetDate: string;
+  completedDate?: string | null;
+  status: 'pending' | 'completed' | 'overdue';
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
