@@ -154,12 +154,20 @@ export default function Settings() {
             <Card>
               <CardHeader>
                 <CardTitle>Notification Preferences</CardTitle>
-                <CardDescription>Configure how you receive notifications</CardDescription>
+                <CardDescription>
+                  Configure how you receive notifications. Email and push notifications are coming soon.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Note:</strong> Email and push notification features are not yet implemented. 
+                    In-app notifications are available via the notification bell in the sidebar.
+                  </p>
+                </div>
+                <div className="flex items-center justify-between opacity-60">
                   <div className="space-y-0.5">
-                    <Label htmlFor="email-notifications">Email Notifications</Label>
+                    <Label htmlFor="email-notifications" className="cursor-not-allowed">Email Notifications</Label>
                     <p className="text-sm text-muted-foreground">
                       Receive notifications via email
                     </p>
@@ -167,15 +175,14 @@ export default function Settings() {
                   <Switch
                     id="email-notifications"
                     checked={notifications.emailNotifications}
-                    onCheckedChange={(checked) =>
-                      setNotifications({ ...notifications, emailNotifications: checked })
-                    }
+                    disabled
+                    title="Coming soon"
                   />
                 </div>
                 <Separator />
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between opacity-60">
                   <div className="space-y-0.5">
-                    <Label htmlFor="task-assignments">Task Assignments</Label>
+                    <Label htmlFor="task-assignments" className="cursor-not-allowed">Task Assignments</Label>
                     <p className="text-sm text-muted-foreground">
                       Notify when tasks are assigned to you
                     </p>
@@ -183,15 +190,14 @@ export default function Settings() {
                   <Switch
                     id="task-assignments"
                     checked={notifications.taskAssignments}
-                    onCheckedChange={(checked) =>
-                      setNotifications({ ...notifications, taskAssignments: checked })
-                    }
+                    disabled
+                    title="Coming soon"
                   />
                 </div>
                 <Separator />
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between opacity-60">
                   <div className="space-y-0.5">
-                    <Label htmlFor="project-updates">Project Updates</Label>
+                    <Label htmlFor="project-updates" className="cursor-not-allowed">Project Updates</Label>
                     <p className="text-sm text-muted-foreground">
                       Notify about project status changes
                     </p>
@@ -199,15 +205,14 @@ export default function Settings() {
                   <Switch
                     id="project-updates"
                     checked={notifications.projectUpdates}
-                    onCheckedChange={(checked) =>
-                      setNotifications({ ...notifications, projectUpdates: checked })
-                    }
+                    disabled
+                    title="Coming soon"
                   />
                 </div>
                 <Separator />
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between opacity-60">
                   <div className="space-y-0.5">
-                    <Label htmlFor="meeting-reminders">Meeting Reminders</Label>
+                    <Label htmlFor="meeting-reminders" className="cursor-not-allowed">Meeting Reminders</Label>
                     <p className="text-sm text-muted-foreground">
                       Remind you about upcoming meetings
                     </p>
@@ -215,9 +220,8 @@ export default function Settings() {
                   <Switch
                     id="meeting-reminders"
                     checked={notifications.meetingReminders}
-                    onCheckedChange={(checked) =>
-                      setNotifications({ ...notifications, meetingReminders: checked })
-                    }
+                    disabled
+                    title="Coming soon"
                   />
                 </div>
               </CardContent>
