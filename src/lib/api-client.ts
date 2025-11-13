@@ -256,6 +256,35 @@ class ApiClient {
     });
   }
 
+  // Tags Management
+  async getTags() {
+    return this.request<any[]>('/tags');
+  }
+
+  async getTag(id: string) {
+    return this.request<any>(`/tags/${id}`);
+  }
+
+  async createTag(data: { name: string; color?: string; category?: string; description?: string }) {
+    return this.request<any>('/tags', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateTag(id: string, data: { name?: string; color?: string; category?: string; description?: string }) {
+    return this.request<any>(`/tags/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteTag(id: string) {
+    return this.request<void>(`/tags/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Time Tracking
   async getTimeEntries() {
     return this.request<any[]>('/time/entries');

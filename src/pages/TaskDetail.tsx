@@ -20,7 +20,9 @@ import { useTaskDependencies } from '@/hooks/useTaskDependencies';
 import { useTaskComments } from '@/hooks/useTaskComments';
 import { usersService } from '@/lib/users-service';
 import { apiClient } from '@/lib/api-client';
-import { Task, User, TaskAttachment, TimeEntry } from '@/types';
+import { Task, User, TaskAttachment, TimeEntry, Tag } from '@/types';
+import { TagSelector } from '@/components/TagSelector';
+import { Tag as TagIcon } from 'lucide-react';
 import { 
   Calendar, 
   Clock, 
@@ -55,13 +57,16 @@ export default function TaskDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [availableTags, setAvailableTags] = useState<Tag[]>([]);
+  const [taskTags, setTaskTags] = useState<Tag[]>([]);
   const [editForm, setEditForm] = useState({
     title: '',
     description: '',
-    priority: 'medium' as Task['priority'],
+    priority: 'MEDIUM' as Task['priority'],
     assignedTo: '',
     dueDate: '',
     estimatedHours: 0,
+    selectedTags: [] as string[],
   });
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [manualEntry, setManualEntry] = useState({
@@ -98,6 +103,7 @@ export default function TaskDetail() {
       fetchProjects();
       fetchTimeEntries();
       loadUsers();
+      loadTags();
       loadAttachments();
       fetchDependencies(id);
       fetchComments(id);
@@ -138,7 +144,9 @@ export default function TaskDetail() {
           assignedTo: normalizedTask.assignedTo,
           dueDate: normalizedTask.dueDate ? new Date(normalizedTask.dueDate).toISOString().split('T')[0] : '',
           estimatedHours: normalizedTask.estimatedHours || 0,
+          selectedTags: [],
         });
+        await loadTaskTags();
       }
     } catch (error) {
       toast({
@@ -166,6 +174,31 @@ export default function TaskDetail() {
     }
   };
 
+  const loadTags = async () => {
+    try {
+      const tags = await apiClient.getTags();
+      setAvailableTags(tags);
+    } catch (error) {
+      console.error('Error loading tags:', error);
+      setAvailableTags([]);
+    }
+  };
+
+  const loadTaskTags = async () => {
+    if (!id) return;
+    try {
+      const taskTagsData = await apiClient.getTaskTags(id);
+      const tags = taskTagsData.map((tt: { tag: Tag }) => tt.tag).filter(Boolean) as Tag[];
+      setTaskTags(tags);
+      if (isEditing) {
+        setEditForm(prev => ({ ...prev, selectedTags: tags.map(t => t.id) }));
+      }
+    } catch (error) {
+      console.error('Error loading task tags:', error);
+      setTaskTags([]);
+    }
+  };
+
   const handleSave = async () => {
     if (!task) return;
 
@@ -179,7 +212,17 @@ export default function TaskDetail() {
         estimatedHours: editForm.estimatedHours,
       });
 
+      // Update task tags
+      if (editForm.selectedTags !== undefined) {
+        try {
+          await apiClient.updateTaskTags(task.id, editForm.selectedTags);
+        } catch (error) {
+          console.error('Error updating task tags:', error);
+        }
+      }
+
       await loadTask();
+      await loadTaskTags();
       await fetchTasks();
       setIsEditing(false);
 
@@ -242,7 +285,7 @@ export default function TaskDetail() {
     if (!task) return;
 
     // If changing to review, show reviewer selection dialog
-    if (newStatus === 'review') {
+    if (newStatus === 'REVIEW') {
       setPendingStatusChange(newStatus);
       setIsReviewerDialogOpen(true);
       return;
@@ -456,10 +499,14 @@ export default function TaskDetail() {
 
   const getStatusIcon = (status: Task['status']) => {
     switch (status) {
-      case 'completed':
+      case 'COMPLETED':
         return <CheckCircle2 className="h-5 w-5 text-green-600" />;
-      case 'in_progress':
+      case 'IN_PROGRESS':
         return <PlayCircle className="h-5 w-5 text-blue-600" />;
+      case 'REVIEW':
+        return <AlertCircle className="h-5 w-5 text-orange-600" />;
+      case 'BLOCKED':
+        return <AlertCircle className="h-5 w-5 text-red-600" />;
       default:
         return <Circle className="h-5 w-5 text-gray-400" />;
     }
@@ -467,25 +514,27 @@ export default function TaskDetail() {
 
   const getPriorityColor = (priority: Task['priority']) => {
     switch (priority) {
-      case 'urgent':
+      case 'URGENT':
         return 'destructive';
-      case 'high':
+      case 'HIGH':
         return 'default';
-      case 'medium':
+      case 'MEDIUM':
         return 'secondary';
-      case 'low':
+      case 'LOW':
         return 'outline';
     }
   };
 
   const getStatusColor = (status: Task['status']) => {
     switch (status) {
-      case 'completed':
+      case 'COMPLETED':
         return 'default';
-      case 'in_progress':
+      case 'IN_PROGRESS':
         return 'default';
-      case 'review':
+      case 'REVIEW':
         return 'secondary';
+      case 'BLOCKED':
+        return 'destructive';
       default:
         return 'outline';
     }
@@ -530,7 +579,7 @@ export default function TaskDetail() {
     );
   }
 
-  const isOverdue = new Date(task.dueDate) < new Date() && task.status !== 'completed';
+  const isOverdue = new Date(task.dueDate) < new Date() && task.status !== 'COMPLETED';
 
   return (
     <AppLayout>
@@ -571,7 +620,10 @@ export default function TaskDetail() {
                   </Button>
                 </>
               ) : (
-                <Button variant="outline" onClick={() => setIsEditing(true)}>
+                <Button variant="outline" onClick={() => {
+                  setIsEditing(true);
+                  loadTaskTags();
+                }}>
                   <Edit className="h-4 w-4 mr-2" />
                   Edit
                 </Button>
@@ -591,11 +643,11 @@ export default function TaskDetail() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="todo">To Do</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="review">Review</SelectItem>
-                  <SelectItem value="blocked">Blocked</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="TODO">To Do</SelectItem>
+                  <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                  <SelectItem value="REVIEW">Review</SelectItem>
+                  <SelectItem value="BLOCKED">Blocked</SelectItem>
+                  <SelectItem value="COMPLETED">Completed</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -608,10 +660,10 @@ export default function TaskDetail() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
+                  <SelectItem value="LOW">Low</SelectItem>
+                  <SelectItem value="MEDIUM">Medium</SelectItem>
+                  <SelectItem value="HIGH">High</SelectItem>
+                  <SelectItem value="URGENT">Urgent</SelectItem>
                 </SelectContent>
               </Select>
             ) : (
@@ -640,6 +692,35 @@ export default function TaskDetail() {
                   <p className="text-muted-foreground whitespace-pre-wrap">
                     {task.description || 'No description provided'}
                   </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Tags */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Tags</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isEditing ? (
+                  <TagSelector
+                    tags={availableTags}
+                    selectedTags={editForm.selectedTags}
+                    onSelectionChange={(tagIds) => setEditForm({ ...editForm, selectedTags: tagIds })}
+                  />
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {taskTags.length > 0 ? (
+                      taskTags.map(tag => (
+                        <Badge key={tag.id} variant="outline" style={{ borderColor: tag.color, color: tag.color }}>
+                          <TagIcon className="h-3 w-3 mr-1" />
+                          {tag.name}
+                        </Badge>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No tags assigned</p>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -885,7 +966,7 @@ export default function TaskDetail() {
                     </div>
                   )}
                 </div>
-                {task.status === 'review' && task.reviewerId && (
+                {task.status === 'REVIEW' && task.reviewerId && (
                   <div>
                     <Label className="text-xs text-muted-foreground">Reviewer</Label>
                     <div className="flex items-center gap-2 mt-1">
@@ -969,8 +1050,8 @@ export default function TaskDetail() {
                 <Button
                   variant="outline"
                   className="w-full justify-start"
-                  onClick={() => handleStatusChange('todo')}
-                  disabled={task.status === 'todo'}
+                  onClick={() => handleStatusChange('TODO')}
+                  disabled={task.status === 'TODO'}
                 >
                   <Circle className="h-4 w-4 mr-2" />
                   Mark as To Do
@@ -978,8 +1059,8 @@ export default function TaskDetail() {
                 <Button
                   variant="outline"
                   className="w-full justify-start"
-                  onClick={() => handleStatusChange('in_progress')}
-                  disabled={task.status === 'in_progress'}
+                  onClick={() => handleStatusChange('IN_PROGRESS')}
+                  disabled={task.status === 'IN_PROGRESS'}
                 >
                   <PlayCircle className="h-4 w-4 mr-2" />
                   Mark as In Progress
@@ -987,8 +1068,8 @@ export default function TaskDetail() {
                 <Button
                   variant="outline"
                   className="w-full justify-start"
-                  onClick={() => handleStatusChange('review')}
-                  disabled={task.status === 'review'}
+                  onClick={() => handleStatusChange('REVIEW')}
+                  disabled={task.status === 'REVIEW'}
                 >
                   <AlertCircle className="h-4 w-4 mr-2" />
                   Mark for Review
@@ -996,8 +1077,8 @@ export default function TaskDetail() {
                 <Button
                   variant="outline"
                   className="w-full justify-start"
-                  onClick={() => handleStatusChange('blocked')}
-                  disabled={task.status === 'blocked'}
+                  onClick={() => handleStatusChange('BLOCKED')}
+                  disabled={task.status === 'BLOCKED'}
                 >
                   <AlertCircle className="h-4 w-4 mr-2" />
                   Mark as Blocked
@@ -1005,8 +1086,8 @@ export default function TaskDetail() {
                 <Button
                   variant="outline"
                   className="w-full justify-start"
-                  onClick={() => handleStatusChange('completed')}
-                  disabled={task.status === 'completed'}
+                  onClick={() => handleStatusChange('COMPLETED')}
+                  disabled={task.status === 'COMPLETED'}
                 >
                   <CheckCircle2 className="h-4 w-4 mr-2" />
                   Mark as Completed
@@ -1017,16 +1098,19 @@ export default function TaskDetail() {
             {/* Dependencies */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Dependencies</CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsDependencyDialogOpen(true)}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Dependency
-                  </Button>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                  <CardTitle className="text-lg">Dependencies</CardTitle>
+                  <div className="w-full sm:w-auto">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsDependencyDialogOpen(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      <span className="hidden sm:inline">Add Dependency</span>
+                      <span className="sm:hidden">Add</span>
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>

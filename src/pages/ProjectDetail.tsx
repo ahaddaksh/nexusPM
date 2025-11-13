@@ -76,6 +76,7 @@ export default function ProjectDetail() {
     startDate: '',
     endDate: '',
     status: 'active' as Project['status'],
+    selectedTags: [] as string[],
   });
 
   // Task creation
@@ -211,20 +212,8 @@ export default function ProjectDetail() {
 
   const loadTags = async () => {
     try {
-      const { supabase } = await import('@/lib/supabase');
-      const { data, error } = await supabase
-        .from('tags')
-        .select('*')
-        .order('name');
-      if (error) {
-        // If table doesn't exist, just set empty array
-        if (error.code === '42P01' || error.code === 'PGRST202' || error.message?.includes('does not exist')) {
-          setAvailableTags([]);
-          return;
-        }
-        throw error;
-      }
-      setAvailableTags(data || []);
+      const tags = await apiClient.getTags();
+      setAvailableTags(tags);
     } catch (error) {
       console.error('Error loading tags:', error);
       setAvailableTags([]);
@@ -309,42 +298,8 @@ export default function ProjectDetail() {
   const loadProjectTags = async () => {
     if (!id) return;
     try {
-      const { supabase } = await import('@/lib/supabase');
-      // Try camelCase first, fallback to snake_case
-      let { data, error } = await supabase
-        .from('project_tags')
-        .select('tagId, tags(*)')
-        .eq('projectId', id);
-      
-      if (error) {
-        // If camelCase fails, try snake_case
-        if (error.code === '42703' || error.message?.includes('projectId') || error.message?.includes('projectid')) {
-          const result = await supabase
-            .from('project_tags')
-            .select('tagid, tags(*)')
-            .eq('projectid', id);
-          
-          if (result.error) {
-            // If table doesn't exist, just set empty array
-            if (result.error.code === '42P01' || result.error.code === 'PGRST202' || result.error.message?.includes('does not exist')) {
-              setProjectTags([]);
-              return;
-            }
-            console.error('Error loading project tags:', result.error);
-            setProjectTags([]);
-            return;
-          }
-          
-          data = result.data;
-        } else if (error.code === '42P01' || error.code === 'PGRST202' || error.message?.includes('does not exist')) {
-          setProjectTags([]);
-          return;
-        } else {
-          throw error;
-        }
-      }
-      
-      setProjectTags((data || []).map((pt: any) => pt.tags).filter(Boolean));
+      const projectTags = await apiClient.getProjectTags(id);
+      setProjectTags(projectTags.map((pt: any) => pt.tag).filter(Boolean));
     } catch (error) {
       console.error('Error loading project tags:', error);
       setProjectTags([]);
@@ -363,10 +318,11 @@ export default function ProjectDetail() {
           startDate: project.startDate ? new Date(project.startDate).toISOString().split('T')[0] : '',
           endDate: project.endDate ? new Date(project.endDate).toISOString().split('T')[0] : '',
           status: project.status,
+          selectedTags: projectTags.map(tag => tag.id),
         });
       }
     }
-  }, [id, projects]);
+  }, [id, projects, projectTags]);
 
   useEffect(() => {
     if (id && tasks.length > 0) {
@@ -386,6 +342,17 @@ export default function ProjectDetail() {
         status: projectForm.status,
         purpose: projectForm.purpose,
       });
+      
+      // Update project tags
+      if (projectForm.selectedTags) {
+        try {
+          await apiClient.updateProjectTags(id, projectForm.selectedTags);
+        } catch (error) {
+          console.error('Error updating project tags:', error);
+        }
+      }
+      
+      await loadProjectTags();
       setIsEditingProject(false);
       await fetchProjects();
       toast({
@@ -852,6 +819,11 @@ export default function ProjectDetail() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <TagSelector
+                      tags={availableTags}
+                      selectedTags={projectForm.selectedTags}
+                      onSelectionChange={(tagIds) => setProjectForm({ ...projectForm, selectedTags: tagIds })}
+                    />
                   </div>
                 ) : (
                   <div className="space-y-4">

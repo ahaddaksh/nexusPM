@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import AppLayout from '@/components/AppLayout';
 import { useToast } from '@/components/ui/use-toast';
 import { useProjects } from '@/hooks/useProjects';
@@ -13,6 +13,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tag } from '@/types';
 import { TagSelector } from '@/components/TagSelector';
+import { apiClient } from '@/lib/api-client';
+import { adminService } from '@/lib/admin-service';
 
 export default function Projects() {
   const navigate = useNavigate();
@@ -30,6 +32,13 @@ export default function Projects() {
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
   const [projectTags, setProjectTags] = useState<Record<string, Tag[]>>({});
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isTagDialogOpen, setIsTagDialogOpen] = useState(false);
+  const [tagForm, setTagForm] = useState({
+    name: '',
+    color: '#3b82f6',
+    category: '',
+    description: '',
+  });
 
   useEffect(() => {
     loadData();
@@ -43,11 +52,11 @@ export default function Projects() {
 
   const loadTags = async () => {
     try {
-      // Tags endpoint will be added to backend - for now use empty array
-      // TODO: Add GET /api/tags endpoint
-      setAvailableTags([]);
+      const tags = await apiClient.getTags();
+      setAvailableTags(tags);
     } catch (error) {
       console.error('Error loading tags:', error);
+      setAvailableTags([]);
     }
   };
 
@@ -209,11 +218,38 @@ export default function Projects() {
                     required
                   />
                 </div>
-                <TagSelector
-                  tags={availableTags}
-                  selectedTags={newProject.selectedTags}
-                  onSelectionChange={(tagIds) => setNewProject({ ...newProject, selectedTags: tagIds })}
-                />
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Tags</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsTagDialogOpen(true)}
+                      className="text-xs"
+                    >
+                      <TagIcon className="h-3 w-3 mr-1" />
+                      Create Tag
+                    </Button>
+                  </div>
+                  {availableTags.length === 0 ? (
+                    <div className="text-sm text-muted-foreground p-3 border rounded-md bg-gray-50">
+                      No tags available. <button
+                        type="button"
+                        onClick={() => setIsTagDialogOpen(true)}
+                        className="text-blue-600 hover:underline"
+                      >
+                        Create your first tag
+                      </button>
+                    </div>
+                  ) : (
+                    <TagSelector
+                      tags={availableTags}
+                      selectedTags={newProject.selectedTags}
+                      onSelectionChange={(tagIds) => setNewProject({ ...newProject, selectedTags: tagIds })}
+                    />
+                  )}
+                </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? 'Creating...' : 'Create Project'}
                 </Button>
@@ -319,6 +355,104 @@ export default function Projects() {
           </div>
         )}
       </div>
+
+      {/* Create Tag Dialog */}
+      <Dialog open={isTagDialogOpen} onOpenChange={setIsTagDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Tag</DialogTitle>
+            <DialogDescription>
+              Create a new tag for categorizing projects and tasks
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="tag-name">Name *</Label>
+              <Input
+                id="tag-name"
+                value={tagForm.name}
+                onChange={(e) => setTagForm({ ...tagForm, name: e.target.value })}
+                placeholder="e.g., Operations, Vendor Management"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tag-color">Color</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="tag-color"
+                  type="color"
+                  value={tagForm.color}
+                  onChange={(e) => setTagForm({ ...tagForm, color: e.target.value })}
+                  className="w-20 h-10"
+                />
+                <Input
+                  type="text"
+                  value={tagForm.color}
+                  onChange={(e) => setTagForm({ ...tagForm, color: e.target.value })}
+                  placeholder="#3b82f6"
+                  className="flex-1"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tag-category">Category</Label>
+              <Input
+                id="tag-category"
+                value={tagForm.category}
+                onChange={(e) => setTagForm({ ...tagForm, category: e.target.value })}
+                placeholder="e.g., operations, vendor, internal"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tag-description">Description</Label>
+              <Textarea
+                id="tag-description"
+                value={tagForm.description}
+                onChange={(e) => setTagForm({ ...tagForm, description: e.target.value })}
+                placeholder="Optional description for this tag"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsTagDialogOpen(false);
+              setTagForm({ name: '', color: '#3b82f6', category: '', description: '' });
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={async () => {
+              if (!tagForm.name.trim()) {
+                toast({
+                  title: 'Error',
+                  description: 'Tag name is required',
+                  variant: 'destructive',
+                });
+                return;
+              }
+
+              try {
+                await adminService.createTag(tagForm);
+                await loadTags();
+                setIsTagDialogOpen(false);
+                setTagForm({ name: '', color: '#3b82f6', category: '', description: '' });
+                toast({
+                  title: 'Success',
+                  description: 'Tag created successfully',
+                });
+              } catch (error) {
+                toast({
+                  title: 'Error',
+                  description: error instanceof Error ? error.message : 'Failed to create tag',
+                  variant: 'destructive',
+                });
+              }
+            }}>
+              Create Tag
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

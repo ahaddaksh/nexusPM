@@ -41,7 +41,7 @@ export const projectsService = {
       description: data.description,
       startDate: data.startDate,
       endDate: data.endDate,
-      status: 'active',
+      status: 'ACTIVE',
       purpose: data.purpose,
       resources: data.resources,
     });

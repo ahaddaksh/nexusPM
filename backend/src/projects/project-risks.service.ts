@@ -20,9 +20,25 @@ export class ProjectRisksService {
       throw new ForbiddenException('Only the project creator can create risks');
     }
 
+    // Calculate risk score from probability and impact (LOW=1, MEDIUM=2, HIGH=3)
+    const probabilityScore = createRiskDto.probability === 'HIGH' ? 3 : createRiskDto.probability === 'MEDIUM' ? 2 : 1;
+    const impactScore = createRiskDto.impact === 'HIGH' ? 3 : createRiskDto.impact === 'MEDIUM' ? 2 : 1;
+    const riskScore = probabilityScore * impactScore;
+
     return this.prisma.projectRisk.create({
       data: {
-        ...createRiskDto,
+        title: createRiskDto.title,
+        description: createRiskDto.description,
+        riskCategory: createRiskDto.riskCategory,
+        probability: createRiskDto.probability || 'MEDIUM',
+        impact: createRiskDto.impact || 'MEDIUM',
+        riskScore,
+        status: createRiskDto.status || 'IDENTIFIED',
+        mitigationStrategy: createRiskDto.mitigationStrategy,
+        mitigationOwnerId: createRiskDto.mitigationOwnerId,
+        targetMitigationDate: createRiskDto.targetMitigationDate 
+          ? new Date(createRiskDto.targetMitigationDate) 
+          : undefined,
         projectId,
         createdBy: userId,
       },

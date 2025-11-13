@@ -1,5 +1,6 @@
 import { IsString, IsNotEmpty, IsOptional, IsEnum, IsDateString, IsNumber } from 'class-validator';
 import { TaskStatus, TaskPriority } from '@prisma/client';
+import { Transform } from 'class-transformer';
 
 export class CreateTaskDto {
   @IsOptional()
@@ -32,6 +33,7 @@ export class CreateTaskDto {
 
   @IsDateString()
   @IsNotEmpty()
+  @Transform(({ value }) => new Date(value).toISOString())
   dueDate: string;
 
   @IsOptional()

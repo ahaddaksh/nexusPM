@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import { IsString, IsNotEmpty, IsDateString, IsOptional } from 'class-validator';
 
 export class CreateMilestoneDto {
@@ -11,6 +12,7 @@ export class CreateMilestoneDto {
 
   @IsDateString()
   @IsNotEmpty()
+  @Transform(({ value }) => new Date(value).toISOString())
   targetDate: string;
 }
 

@@ -7,6 +7,7 @@ import {
   Post,
   Query,
   UseGuards,
+  Body,
 } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { UserNotificationPreferencesService } from './user-notification-preferences.service';

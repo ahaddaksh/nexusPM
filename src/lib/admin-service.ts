@@ -657,58 +657,38 @@ export const adminService = {
 
   // Tags
   async getTags(): Promise<Tag[]> {
-    const { data, error } = await supabase
-      .from('tags')
-      .select('*')
-      .order('name');
-    if (error) {
-      if (error.code === '42P01' || error.code === 'PGRST202' || error.message?.includes('does not exist')) {
-        console.warn('Tags table does not exist. Please run the migration.');
-        return [];
-      }
-      throw error;
+    try {
+      const { apiClient } = await import('./api-client');
+      return await apiClient.getTags();
+    } catch (error) {
+      console.error('Error loading tags:', error);
+      return [];
     }
-    return data || [];
   },
 
-  async createTag(data: Omit<Tag, 'id' | 'createdAt' | 'updatedAt'>): Promise<Tag> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
-
-    const { data: tag, error } = await supabase
-      .from('tags')
-      .insert({
-        ...data,
-        createdBy: user.id,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-      .select()
-      .single();
-    if (error) throw error;
-    return tag;
+  async createTag(data: Omit<Tag, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>): Promise<Tag> {
+    const { apiClient } = await import('./api-client');
+    return await apiClient.createTag({
+      name: data.name,
+      color: data.color,
+      category: data.category,
+      description: data.description,
+    });
   },
 
   async updateTag(id: string, updates: Partial<Tag>): Promise<Tag> {
-    const { data, error } = await supabase
-      .from('tags')
-      .update({
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
+    const { apiClient } = await import('./api-client');
+    return await apiClient.updateTag(id, {
+      name: updates.name,
+      color: updates.color,
+      category: updates.category,
+      description: updates.description,
+    });
   },
 
   async deleteTag(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('tags')
-      .delete()
-      .eq('id', id);
-    if (error) throw error;
+    const { apiClient } = await import('./api-client');
+    return await apiClient.deleteTag(id);
   },
 
   // Settings (API Keys, Models)
