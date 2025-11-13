@@ -120,16 +120,9 @@ export const projectRisksService = {
 
     const r = result.data;
     
-    // Calculate risk score
-    const riskScoreMap: Record<string, number> = {
-      'low': 1,
-      'medium': 2,
-      'high': 3,
-      'critical': 4,
-    };
-    const probabilityScore = riskScoreMap[r.probability] || 2;
-    const impactScore = riskScoreMap[r.impact] || 2;
-    const calculatedRiskScore = probabilityScore * impactScore;
+    // Use risk score from DB, or calculate as fallback
+    const dbRiskScore = r.riskScore || r.riskscore || r.risk_score;
+    const finalRiskScore = dbRiskScore || calculatedRiskScore;
     
     return {
       id: r.id,
@@ -139,7 +132,7 @@ export const projectRisksService = {
       riskCategory: r.riskCategory || r.riskcategory || r.risk_category,
       probability: r.probability,
       impact: r.impact,
-      riskScore: r.riskScore || r.riskscore || r.risk_score || calculatedRiskScore,
+      riskScore: finalRiskScore,
       status: r.status,
       mitigationStrategy: r.mitigationStrategy || r.mitigationstrategy || r.mitigation_strategy,
       mitigationOwner: r.mitigationOwner || r.mitigationowner || r.mitigation_owner,
@@ -233,16 +226,18 @@ export const projectRisksService = {
 
     const r = result.data;
     
-    // Calculate risk score if not present
+    // Calculate risk score if not present in DB
     const riskScoreMap: Record<string, number> = {
       'low': 1,
       'medium': 2,
       'high': 3,
       'critical': 4,
     };
+    const dbRiskScore = r.riskScore || r.riskscore || r.risk_score;
     const probabilityScore = riskScoreMap[r.probability] || 2;
     const impactScore = riskScoreMap[r.impact] || 2;
     const calculatedRiskScore = probabilityScore * impactScore;
+    const finalRiskScore = dbRiskScore || calculatedRiskScore;
     
     return {
       id: r.id,
@@ -252,7 +247,7 @@ export const projectRisksService = {
       riskCategory: r.riskCategory || r.riskcategory || r.risk_category,
       probability: r.probability,
       impact: r.impact,
-      riskScore: r.riskScore || r.riskscore || r.risk_score || calculatedRiskScore,
+      riskScore: finalRiskScore,
       status: r.status,
       mitigationStrategy: r.mitigationStrategy || r.mitigationstrategy || r.mitigation_strategy,
       mitigationOwner: r.mitigationOwner || r.mitigationowner || r.mitigation_owner,
