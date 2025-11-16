@@ -34,7 +34,7 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    const completedTasks = tasks.filter(task => task.status === 'completed').length;
+    const completedTasks = tasks.filter(task => task.status === 'COMPLETED').length;
     const totalTime = timeEntries.reduce((total, entry) => total + (entry.durationMinutes || 0), 0);
     
     setStats({
@@ -69,12 +69,12 @@ export default function Dashboard() {
   const timeDiff = todayTime - yesterdayTime;
 
   // Get tasks by status
-  const inProgressTasks = tasks.filter(t => t.status === 'in_progress');
-  const todoTasks = tasks.filter(t => t.status === 'todo');
+  const inProgressTasks = tasks.filter(t => t.status === 'IN_PROGRESS');
+  const todoTasks = tasks.filter(t => t.status === 'TODO');
   const tasksDueToday = tasks.filter(t => {
     if (!t.dueDate) return false;
     const dueDate = new Date(t.dueDate).toISOString().split('T')[0];
-    return dueDate === today && t.status !== 'completed' && t.status !== 'in_progress';
+    return dueDate === today && t.status !== 'COMPLETED' && t.status !== 'IN_PROGRESS';
   });
   const upcomingTasks = todoTasks.filter(t => {
     // Exclude tasks that are in progress
@@ -85,7 +85,7 @@ export default function Dashboard() {
   const projectsApproachingDeadline = projects.filter(p => {
     const endDate = new Date(p.endDate);
     const daysUntilDeadline = Math.ceil((endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-    return daysUntilDeadline <= 7 && daysUntilDeadline > 0 && p.status === 'active';
+    return daysUntilDeadline <= 7 && daysUntilDeadline > 0 && p.status === 'ACTIVE';
   });
 
   // Calculate productivity based on 40 hours/week per member
@@ -195,7 +195,7 @@ export default function Dashboard() {
     }
   }, [timeEntries, tasks, user, stats.completedTasks]);
   const completedThisWeek = tasks.filter(t => {
-    if (t.status !== 'completed') return false;
+    if (t.status !== 'COMPLETED') return false;
     // Use createdAt as fallback since updatedAt might not exist
     const completedDate = new Date(t.createdAt);
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);

@@ -78,7 +78,7 @@ export default function ProjectDetail() {
     purpose: '',
     startDate: '',
     endDate: '',
-    status: 'active' as Project['status'],
+    status: 'ACTIVE' as Project['status'],
     selectedTags: [] as string[],
   });
 
@@ -87,7 +87,7 @@ export default function ProjectDetail() {
   const [taskForm, setTaskForm] = useState({
     title: '',
     description: '',
-    priority: 'medium' as Task['priority'],
+    priority: 'MEDIUM' as Task['priority'],
     assignedTo: '',
     dueDate: '',
     estimatedHours: 1,
@@ -596,9 +596,9 @@ export default function ProjectDetail() {
 
   const projectStats = {
     totalTasks: projectTasks.length,
-    completedTasks: projectTasks.filter(t => t.status === 'completed').length,
-    inProgressTasks: projectTasks.filter(t => t.status === 'in_progress').length,
-    overdueTasks: projectTasks.filter(t => isOverdue(t.dueDate) && t.status !== 'completed').length,
+    completedTasks: projectTasks.filter(t => t.status === 'COMPLETED').length,
+    inProgressTasks: projectTasks.filter(t => t.status === 'IN_PROGRESS').length,
+    overdueTasks: projectTasks.filter(t => isOverdue(t.dueDate) && t.status !== 'COMPLETED').length,
   };
 
   return (
@@ -1337,9 +1337,9 @@ export default function ProjectDetail() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
-                          <SelectItem value="archived">Archived</SelectItem>
+                          <SelectItem value="ACTIVE">Active</SelectItem>
+                          <SelectItem value="COMPLETED">Completed</SelectItem>
+                          <SelectItem value="ARCHIVED">Archived</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1375,6 +1375,19 @@ export default function ProjectDetail() {
                         </p>
                       </div>
                     </div>
+                    {projectTags.length > 0 && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-2 block">Tags</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {projectTags.map(tag => (
+                            <Badge key={tag.id} variant="outline" style={{ borderColor: tag.color, color: tag.color }}>
+                              <TagIcon className="h-3 w-3 mr-1" />
+                              {tag.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </TabsContent>

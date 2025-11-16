@@ -166,7 +166,7 @@ export default function TimeTrackerWidget() {
   };
 
   const availableTasks = tasks
-    .filter(t => t.status !== 'completed')
+    .filter(t => t.status !== 'COMPLETED')
     .filter(t => {
       if (!searchQuery) return true;
       const query = searchQuery.toLowerCase();
@@ -177,8 +177,8 @@ export default function TimeTrackerWidget() {
     })
     .sort((a, b) => {
       // Sort by: in_progress first, then by title
-      if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
-      if (b.status === 'in_progress' && a.status !== 'in_progress') return 1;
+      if (a.status === 'IN_PROGRESS' && b.status !== 'IN_PROGRESS') return -1;
+      if (b.status === 'IN_PROGRESS' && a.status !== 'IN_PROGRESS') return 1;
       return a.title.localeCompare(b.title);
     });
 
@@ -361,7 +361,7 @@ export default function TimeTrackerWidget() {
                                 {projectName}
                               </div>
                             )}
-                            {task.status === 'in_progress' && (
+                            {task.status === 'IN_PROGRESS' && (
                               <Badge variant="secondary" className="mt-1 text-xs">
                                 In Progress
                               </Badge>

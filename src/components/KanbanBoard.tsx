@@ -3,10 +3,10 @@ import { Task } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { 
-  DndContext, 
-  DragEndEvent, 
-  DragOverlay, 
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
   DragStartEvent,
   PointerSensor,
   useSensor,
@@ -39,14 +39,14 @@ interface KanbanBoardProps {
 }
 
 const statusConfig: Record<Task['status'], { label: string; color: string; bgColor: string }> = {
-  todo: { label: 'To Do', color: 'text-gray-700', bgColor: 'bg-gray-100' },
-  in_progress: { label: 'In Progress', color: 'text-blue-700', bgColor: 'bg-blue-100' },
-  review: { label: 'Review', color: 'text-orange-700', bgColor: 'bg-orange-100' },
-  blocked: { label: 'Blocked', color: 'text-red-700', bgColor: 'bg-red-100' },
-  completed: { label: 'Completed', color: 'text-green-700', bgColor: 'bg-green-100' },
+  TODO: { label: 'To Do', color: 'text-gray-700', bgColor: 'bg-gray-100' },
+  IN_PROGRESS: { label: 'In Progress', color: 'text-blue-700', bgColor: 'bg-blue-100' },
+  REVIEW: { label: 'Review', color: 'text-orange-700', bgColor: 'bg-orange-100' },
+  BLOCKED: { label: 'Blocked', color: 'text-red-700', bgColor: 'bg-red-100' },
+  COMPLETED: { label: 'Completed', color: 'text-green-700', bgColor: 'bg-green-100' },
 };
 
-const statusOrder: Task['status'][] = ['todo', 'in_progress', 'review', 'blocked', 'completed'];
+const statusOrder: Task['status'][] = ['TODO', 'IN_PROGRESS', 'REVIEW', 'BLOCKED', 'COMPLETED'];
 
 export function KanbanBoard({ tasks, onTaskStatusChange, showProject = false, users = [] }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -91,13 +91,13 @@ export function KanbanBoard({ tasks, onTaskStatusChange, showProject = false, us
 
   const getStatusIcon = (status: Task['status']) => {
     switch (status) {
-      case 'completed':
+      case 'COMPLETED':
         return <CheckCircle2 className="h-4 w-4 text-green-600" />;
-      case 'in_progress':
+      case 'IN_PROGRESS':
         return <PlayCircle className="h-4 w-4 text-blue-600" />;
-      case 'review':
+      case 'REVIEW':
         return <AlertCircle className="h-4 w-4 text-orange-600" />;
-      case 'blocked':
+      case 'BLOCKED':
         return <AlertCircle className="h-4 w-4 text-red-600" />;
       default:
         return <Circle className="h-4 w-4 text-gray-400" />;
@@ -106,11 +106,11 @@ export function KanbanBoard({ tasks, onTaskStatusChange, showProject = false, us
 
   const getPriorityColor = (priority: Task['priority']) => {
     switch (priority) {
-      case 'urgent':
+      case 'URGENT':
         return 'bg-red-500';
-      case 'high':
+      case 'HIGH':
         return 'bg-orange-500';
-      case 'medium':
+      case 'MEDIUM':
         return 'bg-yellow-500';
       default:
         return 'bg-gray-400';

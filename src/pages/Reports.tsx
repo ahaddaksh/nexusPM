@@ -215,7 +215,7 @@ export default function Reports() {
   const projectStatusData = useMemo(() => {
     return filteredProjects.map(project => {
       const projectTasks = filteredTasks.filter(t => t.projectId === project.id);
-      const completedTasks = projectTasks.filter(t => t.status === 'completed').length;
+      const completedTasks = projectTasks.filter(t => t.status === 'COMPLETED').length;
       const totalTasks = projectTasks.length;
       const completionPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
       
@@ -229,17 +229,17 @@ export default function Reports() {
       const hoursProgress = estimatedHours > 0 ? (totalHours / estimatedHours) * 100 : 0;
       
       const statusBreakdown = {
-        todo: projectTasks.filter(t => t.status === 'todo').length,
-        in_progress: projectTasks.filter(t => t.status === 'in_progress').length,
-        review: projectTasks.filter(t => t.status === 'review').length,
+        todo: projectTasks.filter(t => t.status === 'TODO').length,
+        in_progress: projectTasks.filter(t => t.status === 'IN_PROGRESS').length,
+        review: projectTasks.filter(t => t.status === 'REVIEW').length,
         completed: completedTasks,
       };
       
       const priorityBreakdown = {
-        urgent: projectTasks.filter(t => t.priority === 'urgent').length,
-        high: projectTasks.filter(t => t.priority === 'high').length,
-        medium: projectTasks.filter(t => t.priority === 'medium').length,
-        low: projectTasks.filter(t => t.priority === 'low').length,
+        urgent: projectTasks.filter(t => t.priority === 'URGENT').length,
+        high: projectTasks.filter(t => t.priority === 'HIGH').length,
+        medium: projectTasks.filter(t => t.priority === 'MEDIUM').length,
+        low: projectTasks.filter(t => t.priority === 'LOW').length,
       };
       
       const startDate = new Date(project.startDate);
@@ -269,21 +269,21 @@ export default function Reports() {
   const taskStatistics = useMemo(() => {
     const total = filteredTasks.length;
     const byStatus = {
-      todo: filteredTasks.filter(t => t.status === 'todo').length,
-      in_progress: filteredTasks.filter(t => t.status === 'in_progress').length,
-      review: filteredTasks.filter(t => t.status === 'review').length,
-      completed: filteredTasks.filter(t => t.status === 'completed').length,
+      todo: filteredTasks.filter(t => t.status === 'TODO').length,
+      in_progress: filteredTasks.filter(t => t.status === 'IN_PROGRESS').length,
+      review: filteredTasks.filter(t => t.status === 'REVIEW').length,
+      completed: filteredTasks.filter(t => t.status === 'COMPLETED').length,
     };
     
     const byPriority = {
-      urgent: filteredTasks.filter(t => t.priority === 'urgent').length,
-      high: filteredTasks.filter(t => t.priority === 'high').length,
-      medium: filteredTasks.filter(t => t.priority === 'medium').length,
-      low: filteredTasks.filter(t => t.priority === 'low').length,
+      urgent: filteredTasks.filter(t => t.priority === 'URGENT').length,
+      high: filteredTasks.filter(t => t.priority === 'HIGH').length,
+      medium: filteredTasks.filter(t => t.priority === 'MEDIUM').length,
+      low: filteredTasks.filter(t => t.priority === 'LOW').length,
     };
     
     const overdue = filteredTasks.filter(t => {
-      if (t.status === 'completed') return false;
+      if (t.status === 'COMPLETED') return false;
       const dueDate = new Date(t.dueDate);
       return dueDate < new Date();
     }).length;
@@ -293,7 +293,7 @@ export default function Reports() {
       : 0;
     
     // Calculate average time to complete (for completed tasks)
-    const completedTasks = filteredTasks.filter(t => t.status === 'completed' && t.createdAt && t.updatedAt);
+    const completedTasks = filteredTasks.filter(t => t.status === 'COMPLETED' && t.createdAt && t.updatedAt);
     const avgTimeToComplete = completedTasks.length > 0
       ? completedTasks.reduce((sum, t) => {
           const created = new Date(t.createdAt);

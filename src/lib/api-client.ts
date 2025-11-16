@@ -3,6 +3,100 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
+// Enum normalization helpers
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+// Keys that should be uppercased when sending to backend (Prisma enums are uppercase)
+const ENUM_KEYS_TO_UPPERCASE = new Set([
+  'role',
+  'status',
+  'priority',
+  'dependencyType',
+  'reportType',
+  'riskCategory',
+  'probability',
+  'impact',
+]);
+
+function normalizeOutgoingEnums<T>(data: T): T {
+  if (Array.isArray(data)) {
+    return data.map(item => normalizeOutgoingEnums(item)) as unknown as T;
+  }
+  if (isPlainObject(data)) {
+    const result: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (typeof value === 'string' && ENUM_KEYS_TO_UPPERCASE.has(key)) {
+        result[key] = value.toUpperCase();
+      } else if (Array.isArray(value) || isPlainObject(value)) {
+        result[key] = normalizeOutgoingEnums(value);
+      } else {
+        result[key] = value;
+      }
+    }
+    return result as T;
+  }
+  return data;
+}
+
+// Lowercase only enums the frontend expects in lowercase. Leave Task/Project status/priority as-is (uppercase).
+function normalizeIncomingEnums<T>(data: T): T {
+  if (Array.isArray(data)) {
+    return data.map(item => normalizeIncomingEnums(item)) as unknown as T;
+  }
+  if (isPlainObject(data)) {
+    const result: Record<string, any> = {};
+    const obj = data as Record<string, any>;
+    const looksLikeSuggestion = 'originalText' in obj && 'suggestedTask' in obj;
+    const looksLikeRisk =
+      'riskCategory' in obj ||
+      ('probability' in obj && 'impact' in obj);
+    const looksLikeMilestone =
+      'targetDate' in obj || 'completedDate' in obj;
+
+    for (const [key, value] of Object.entries(obj)) {
+      if (typeof value === 'string') {
+        // Always lowercase these keys for frontend
+        if (key === 'role') {
+          result[key] = value.toLowerCase();
+          continue;
+        }
+        if (key === 'reportType') {
+          result[key] = value.toLowerCase();
+          continue;
+        }
+        if (key === 'dependencyType') {
+          result[key] = value.toLowerCase();
+          continue;
+        }
+        if (key === 'riskCategory' || key === 'probability' || key === 'impact') {
+          result[key] = value.toLowerCase();
+          continue;
+        }
+        if (key === 'status') {
+          // Lowercase status for suggestions, risks, milestones
+          if (looksLikeSuggestion || looksLikeRisk || looksLikeMilestone) {
+            result[key] = value.toLowerCase();
+            continue;
+          }
+          // Else, leave as-is (tasks and projects expect uppercase in frontend)
+          result[key] = value;
+          continue;
+        }
+        // Default: keep value
+        result[key] = value;
+      } else if (Array.isArray(value) || isPlainObject(value)) {
+        result[key] = normalizeIncomingEnums(value);
+      } else {
+        result[key] = value;
+      }
+    }
+    return result as T;
+  }
+  return data;
+}
+
 class ApiClient {
   private token: string | null = null;
 
@@ -27,7 +121,7 @@ class ApiClient {
     options: RequestInit = {},
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
-    const headers: HeadersInit = {
+    let headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
     };
@@ -37,9 +131,23 @@ class ApiClient {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
     }
 
+    // Normalize outgoing JSON bodies for enum casing
+    let body = options.body;
+    const contentType = (headers as Record<string, string>)['Content-Type'] || '';
+    if (body && contentType.includes('application/json') && typeof body === 'string') {
+      try {
+        const parsed = JSON.parse(body);
+        const normalized = normalizeOutgoingEnums(parsed);
+        body = JSON.stringify(normalized);
+      } catch {
+        // If parsing fails, send as-is
+      }
+    }
+
     const response = await fetch(url, {
       ...options,
       headers,
+      body,
     });
 
     if (!response.ok) {
@@ -48,9 +156,10 @@ class ApiClient {
     }
 
     // Handle empty responses
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      return response.json();
+    const respContentType = response.headers.get('content-type');
+    if (respContentType && respContentType.includes('application/json')) {
+      const json = await response.json();
+      return normalizeIncomingEnums(json);
     }
     return {} as T;
   }
@@ -438,7 +547,8 @@ class ApiClient {
   async getCurrentUserRole() {
     // Backend returns role as string directly, wrap it for consistency
     const role = await this.request<string>('/users/role');
-    return { role: role || 'MEMBER' };
+    const normalized = typeof role === 'string' ? role.toLowerCase() : 'member';
+    return { role: normalized || 'member' };
   }
 
   // Reports
