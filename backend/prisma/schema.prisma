@@ -238,6 +238,7 @@ model ProjectMilestone {
 
 enum MilestoneStatus {
   PENDING
+  IN_PROGRESS
   COMPLETED
   OVERDUE
 }
