@@ -1,6 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import * as bcrypt from 'bcryptjs';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -15,6 +18,7 @@ export class UsersService {
         firstName: true,
         lastName: true,
         role: true,
+        isActive: true,
         teamId: true,
         departmentId: true,
         createdAt: true,
@@ -42,6 +46,53 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    return user;
+  }
+
+  async create(createUserDto: CreateUserDto) {
+    const { email, firstName, lastName } = createUserDto;
+    if (!email || !firstName || !lastName) {
+      throw new BadRequestException('email, firstName and lastName are required');
+    }
+
+    // Normalize role: fallback to MEMBER
+    let role: Role = Role.MEMBER;
+    if (createUserDto.role) {
+      role = createUserDto.role;
+    }
+
+    // Hash password (generate if not provided - though frontend typically provides one)
+    const passwordToHash =
+      createUserDto.password && createUserDto.password.length >= 6
+        ? createUserDto.password
+        : Math.random().toString(36).slice(-12);
+    const hashedPassword = await bcrypt.hash(passwordToHash, 10);
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: createUserDto.email,
+        password: hashedPassword,
+        firstName: createUserDto.firstName,
+        lastName: createUserDto.lastName,
+        role,
+        isActive: createUserDto.isActive ?? true,
+        teamId: createUserDto.teamId || null,
+        departmentId: createUserDto.departmentId || null,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        isActive: true,
+        teamId: true,
+        departmentId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
 
     return user;
   }
