@@ -15,6 +15,7 @@ import { AdminModule } from './admin/admin.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { TeamsModule } from './teams/teams.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { AllowedDomainsModule } from './allowed-domains/allowed-domains.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { PrismaModule } from './prisma/prisma.module';
     StorageModule,
     SettingsModule,
     AdminModule,
+    AllowedDomainsModule,
   ],
 })
 export class AppModule {}

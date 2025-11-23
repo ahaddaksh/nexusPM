@@ -199,6 +199,22 @@ class ApiClient {
   }
 
   // Users
+  async createUser(data: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    password?: string;
+    role?: string;
+    isActive?: boolean;
+    teamId?: string;
+    departmentId?: string;
+  }) {
+    return this.request<any>('/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async updateUser(id: string, data: any) {
     return this.request<any>(`/users/${id}`, {
       method: 'PUT',
@@ -745,6 +761,31 @@ class ApiClient {
 
   async getPublicSettings() {
     return this.request<any>('/settings/public');
+  }
+
+  // Allowed Domains (Admin)
+  async getAllowedDomains() {
+    return this.request<any[]>('/allowed-domains');
+  }
+
+  async createAllowedDomain(data: { domain: string; isActive?: boolean; autoAssignTeamId?: string; autoAssignDepartmentId?: string }) {
+    return this.request<any>('/allowed-domains', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateAllowedDomain(id: string, data: Partial<{ domain: string; isActive: boolean; autoAssignTeamId: string; autoAssignDepartmentId: string }>) {
+    return this.request<any>(`/allowed-domains/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteAllowedDomain(id: string) {
+    return this.request<void>(`/allowed-domains/${id}`, {
+      method: 'DELETE',
+    });
   }
 }
 

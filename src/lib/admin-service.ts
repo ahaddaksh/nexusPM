@@ -9,6 +9,20 @@ export const adminService = {
     return (users || []) as User[];
   },
 
+  async createUser(data: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    password?: string;
+    role?: User['role'];
+    isActive?: boolean;
+    teamId?: string;
+    departmentId?: string;
+  }): Promise<User> {
+    const created = await apiClient.createUser(data);
+    return created as User;
+  },
+
   async getUserById(id: string): Promise<User | null> {
     try {
       const user = await apiClient.getUser(id);
@@ -18,7 +32,7 @@ export const adminService = {
     }
   },
 
-  async updateUser(id: string, updates: Partial<User>): Promise<User> {
+  async updateUser(id: string, updates: Partial<User> & { teamId?: string; departmentId?: string }): Promise<User> {
     const payload: Record<string, unknown> = {
       email: updates.email,
       firstName: updates.firstName,
@@ -27,9 +41,8 @@ export const adminService = {
       isActive: updates.isActive,
     };
     // Include optional relations when provided
-    const rel = updates as Partial<{ teamId?: string; departmentId?: string }>;
-    if (rel.teamId !== undefined) payload.teamId = rel.teamId;
-    if (rel.departmentId !== undefined) payload.departmentId = rel.departmentId;
+    if (updates.teamId !== undefined) payload.teamId = updates.teamId;
+    if (updates.departmentId !== undefined) payload.departmentId = updates.departmentId;
 
     const user = await apiClient.updateUser(id, payload);
     return user as User;
@@ -49,7 +62,7 @@ export const adminService = {
     return (teams || []) as Team[];
   },
 
-  async createTeam(data: Omit<Team, 'id' | 'createdAt' | 'updatedAt'>): Promise<Team> {
+  async createTeam(data: { name: string; description?: string; departmentId?: string; teamLeadId?: string }): Promise<Team> {
     const team = await apiClient.createTeam({
       name: data.name,
       description: data.description,
@@ -79,7 +92,7 @@ export const adminService = {
     return (departments || []) as Department[];
   },
 
-  async createDepartment(data: Omit<Department, 'id' | 'createdAt' | 'updatedAt'>): Promise<Department> {
+  async createDepartment(data: { name: string; description?: string }): Promise<Department> {
     const dept = await apiClient.createDepartment({
       name: data.name,
       description: data.description,
@@ -101,20 +114,29 @@ export const adminService = {
 
   // Allowed Domains
   async getAllowedDomains(): Promise<AllowedDomain[]> {
-    // Not supported via backend APIs; controlled by environment variable
-    return [];
+    try {
+      const { apiClient } = await import('./api-client');
+      const domains = await apiClient.getAllowedDomains();
+      return (domains || []) as AllowedDomain[];
+    } catch (error) {
+      console.error('Error loading allowed domains:', error);
+      return [];
+    }
   },
 
-  async createAllowedDomain(_data: Omit<AllowedDomain, 'id' | 'createdAt' | 'updatedAt'>): Promise<AllowedDomain> {
-    throw new Error('Allowed domains are configured via backend environment (ALLOWED_DOMAINS).');
+  async createAllowedDomain(data: { domain: string; isActive?: boolean; autoAssignTeamId?: string; autoAssignDepartmentId?: string }): Promise<AllowedDomain> {
+    const { apiClient } = await import('./api-client');
+    return apiClient.createAllowedDomain(data);
   },
 
-  async updateAllowedDomain(_id: string, _updates: Partial<AllowedDomain>): Promise<AllowedDomain> {
-    throw new Error('Allowed domains are configured via backend environment (ALLOWED_DOMAINS).');
+  async updateAllowedDomain(id: string, updates: { domain?: string; isActive?: boolean; autoAssignTeamId?: string; autoAssignDepartmentId?: string }): Promise<AllowedDomain> {
+    const { apiClient } = await import('./api-client');
+    return apiClient.updateAllowedDomain(id, updates);
   },
 
-  async deleteAllowedDomain(_id: string): Promise<void> {
-    throw new Error('Allowed domains are configured via backend environment (ALLOWED_DOMAINS).');
+  async deleteAllowedDomain(id: string): Promise<void> {
+    const { apiClient } = await import('./api-client');
+    return apiClient.deleteAllowedDomain(id);
   },
 
   // Tags
