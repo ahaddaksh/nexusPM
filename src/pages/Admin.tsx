@@ -14,11 +14,11 @@ import AppLayout from '@/components/AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/ui/use-toast';
 import { apiClient } from '@/lib/api-client';
-import { 
-  Users, 
-  Building2, 
-  UsersRound, 
-  Shield, 
+import {
+  Users,
+  Building2,
+  UsersRound,
+  Shield,
   Tag as TagIcon,
   Plus,
   Edit,
@@ -27,7 +27,7 @@ import {
   RefreshCw,
   Settings
 } from 'lucide-react';
-import { User, Department, Team, AllowedDomain, Tag } from '@/types';
+import { User, Department, Team, AllowedDomain, Tag, ExtendedUser } from '@/types';
 import { adminService } from '@/lib/admin-service';
 
 export default function Admin() {
@@ -220,7 +220,7 @@ export default function Admin() {
 // Users Management Component
 function UsersManagement() {
   const { toast } = useToast();
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<ExtendedUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -253,7 +253,7 @@ function UsersManagement() {
       ]);
 
       if (usersResult.status === 'fulfilled') {
-        setUsers(usersResult.value);
+        setUsers(usersResult.value as ExtendedUser[]);
         if (usersResult.value.length === 0) {
           toast({
             title: 'Info',
@@ -334,7 +334,8 @@ function UsersManagement() {
   };
 
   const handleSave = async () => {
-    if (!formData.firstName || !formData.lastName || !formData.email) {
+    const normalizedEmail = formData.email.trim().toLowerCase();
+    if (!formData.firstName || !formData.lastName || !normalizedEmail) {
       toast({
         title: 'Error',
         description: 'Please fill in all required fields',
@@ -345,7 +346,7 @@ function UsersManagement() {
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
+    if (!emailRegex.test(normalizedEmail)) {
       toast({
         title: 'Error',
         description: 'Please enter a valid email address',
@@ -358,6 +359,7 @@ function UsersManagement() {
       if (editingUser) {
         await adminService.updateUser(editingUser.id, {
           ...formData,
+          email: normalizedEmail,
           teamId: formData.teamId || null,
           departmentId: formData.departmentId || null,
         });
@@ -382,126 +384,24 @@ function UsersManagement() {
           return;
         }
 
-        // Create user in Supabase Auth
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: formData.email,
-          password: password,
-          options: {
-            data: {
-              firstName: formData.firstName,
-              lastName: formData.lastName,
-              role: formData.role,
-            },
-            emailRedirectTo: `${window.location.origin}/login`,
-          },
+        // Create user via backend API
+        await adminService.createUser({
+          email: normalizedEmail,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          password,
+          role: formData.role,
+          isActive: formData.isActive,
+          teamId: formData.teamId || undefined,
+          departmentId: formData.departmentId || undefined,
         });
 
-        if (authError) {
-          console.error('Supabase Auth error:', authError);
-          // Check if user already exists
-          if (authError.message?.includes('already registered') || authError.message?.includes('already exists') || authError.message?.includes('User already registered')) {
-            throw new Error('A user with this email already exists. Please sync from auth or use a different email.');
-          }
-          // Check for email confirmation required
-          if (authError.message?.includes('email') && authError.message?.includes('confirm')) {
-            throw new Error('Email confirmation is required. Please check your Supabase Auth settings or try again.');
-          }
-          // Check for password requirements
-          if (authError.message?.includes('password') || authError.message?.includes('Password')) {
-            throw new Error(`Password requirements not met: ${authError.message}`);
-          }
-          // Generic error with full message
-          const errorMsg = authError.message || authError.toString() || 'Unknown error';
-          throw new Error(`Failed to create user in authentication: ${errorMsg}`);
-        }
-
-        // Note: If email confirmation is required, authData.user might exist but authData.session will be null
-        if (!authData.user) {
-          throw new Error('User creation failed - no user returned from Supabase Auth. This might be due to email confirmation requirements.');
-        }
-
-        // Create user record in users table
-        // Try lowercase first (PostgreSQL lowercases unquoted identifiers)
-        let userResult = await supabase
-          .from('users')
-          .insert({
-            id: authData.user.id,
-            email: formData.email,
-            firstname: formData.firstName,
-            lastname: formData.lastName,
-            role: formData.role,
-            isactive: formData.isActive,
-            teamid: formData.teamId || null,
-            departmentid: formData.departmentId || null,
-            createdat: new Date().toISOString(),
-            updatedat: new Date().toISOString(),
-          });
-
-        // If lowercase fails, try camelCase
-        if (userResult.error && (userResult.error.code === 'PGRST204' || userResult.error.message?.includes('column'))) {
-          userResult = await supabase
-            .from('users')
-            .insert({
-              id: authData.user.id,
-              email: formData.email,
-              firstName: formData.firstName,
-              lastName: formData.lastName,
-              role: formData.role,
-              isActive: formData.isActive,
-              teamId: formData.teamId || null,
-              departmentId: formData.departmentId || null,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            });
-        }
-
-        if (userResult.error) {
-          // If user table insert fails, log the full error
-          console.error('Failed to create user record in database:', userResult.error);
-          console.error('Error code:', userResult.error.code);
-          console.error('Error message:', userResult.error.message);
-          console.error('Error details:', userResult.error);
-          
-          // Provide more helpful error messages
-          let errorMessage = `Failed to create user record: ${userResult.error.message || 'Unknown error'}`;
-          if (userResult.error.code === 'PGRST204') {
-            errorMessage = 'Column name mismatch. Please check your database schema.';
-          } else if (userResult.error.code === '23505') {
-            errorMessage = 'A user with this ID already exists in the database.';
-          } else if (userResult.error.code === '42501' || userResult.error.message?.includes('permission denied') || userResult.error.message?.includes('RLS')) {
-            errorMessage = 'Permission denied. Please check your Row Level Security (RLS) policies in Supabase.';
-          } else if (userResult.error.message?.includes('does not exist')) {
-            errorMessage = 'The users table does not exist. Please run the database migration.';
-          }
-          
-          // Note: We can't easily delete the auth user without admin privileges
-          // The auth user might have been created, so we should inform the admin
-          throw new Error(`${errorMessage} Note: The user may have been created in authentication but not in the database.`);
-        }
-
-        // Send password reset email so user can set their own password
-        // This will work even if email confirmation is required
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(formData.email, {
-          redirectTo: `${window.location.origin}/reset-password`,
+        toast({
+          title: 'Success',
+          description: `User created successfully.${generatePassword ? ` Temporary password: ${password}` : ''}`,
+          variant: 'default',
+          duration: 10000,
         });
-
-        if (resetError) {
-          console.warn('Failed to send password reset email:', resetError);
-          // Don't fail the whole operation, just warn
-          toast({
-            title: 'User created',
-            description: `User created successfully. ${generatePassword ? `Temporary password: ${password}. ` : ''}Please share this password securely with the user, or they can use "Forgot Password" on the login page to set their own password.`,
-            variant: 'default',
-            duration: 10000, // Show for 10 seconds so admin can copy password
-          });
-        } else {
-          toast({
-            title: 'Success',
-            description: `User created successfully. ${generatePassword ? `Temporary password: ${password}. ` : ''}A password reset email has been sent to ${formData.email} so they can set their own password.`,
-            variant: 'default',
-            duration: 10000, // Show for 10 seconds so admin can copy password
-          });
-        }
       }
       setIsDialogOpen(false);
       setEditingUser(null);
@@ -515,9 +415,9 @@ function UsersManagement() {
         stack: error instanceof Error ? error.stack : undefined,
         error: error,
       });
-      
+
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       // Provide user-friendly error messages
       let userMessage = errorMessage;
       if (errorMessage.includes('already exists')) {
@@ -535,7 +435,7 @@ function UsersManagement() {
       } else if (errorMessage.includes('Database error')) {
         userMessage = 'Database error occurred. Please check the browser console for details and verify your Supabase configuration.';
       }
-      
+
       toast({
         title: 'Error',
         description: userMessage,
@@ -602,8 +502,8 @@ function UsersManagement() {
                       {user.role || 'member'}
                     </Badge>
                   </TableCell>
-                  <TableCell>{(user as any).teamId ? teams.find(t => t.id === (user as any).teamId)?.name || '-' : '-'}</TableCell>
-                  <TableCell>{(user as any).departmentId ? departments.find(d => d.id === (user as any).departmentId)?.name || '-' : '-'}</TableCell>
+                  <TableCell>{user.teamId ? teams.find(t => t.id === user.teamId)?.name || '-' : '-'}</TableCell>
+                  <TableCell>{user.departmentId ? departments.find(d => d.id === user.departmentId)?.name || '-' : '-'}</TableCell>
                   <TableCell>
                     <Badge variant={user.isActive ? 'default' : 'secondary'}>
                       {user.isActive ? 'Active' : 'Inactive'}
@@ -618,13 +518,14 @@ function UsersManagement() {
                           try {
                             setEditingUser(user);
                             setFormData({
-                              email: user.email,
+                              email: (user.email || '').toLowerCase(),
                               firstName: user.firstName,
                               lastName: user.lastName,
+                              password: '',
                               role: user.role || 'member',
                               isActive: user.isActive ?? true,
-                              teamId: (user as any).teamId || '',
-                              departmentId: (user as any).departmentId || '',
+                              teamId: user.teamId || '',
+                              departmentId: user.departmentId || '',
                             });
                             setIsDialogOpen(true);
                           } catch (error) {
@@ -680,7 +581,7 @@ function UsersManagement() {
                   id="email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value.trim().toLowerCase() })}
                 />
               </div>
               {!editingUser && (
@@ -1883,7 +1784,21 @@ function SettingsManagement() {
   const loadSettings = async () => {
     setIsLoading(true);
     try {
-      const data = await adminService.getSettings();
+      const data = (await adminService.getSettings()) as Partial<{
+        aiApiKey: string;
+        aiApiUrl: string;
+        aiModel: string;
+        supabaseUrl: string;
+        supabaseAnonKey: string;
+        emailEnabled: boolean;
+        emailProvider: 'resend' | 'sendgrid' | 'ses' | 'custom';
+        emailApiUrl: string;
+        emailApiKey: string;
+        emailFrom: string;
+        pushEnabled: boolean;
+        pushVapidPublicKey: string;
+        pushVapidPrivateKey: string;
+      }>;
       setSettings({
         aiApiKey: data.aiApiKey || '',
         aiApiUrl: data.aiApiUrl || '',
@@ -1891,7 +1806,7 @@ function SettingsManagement() {
         supabaseUrl: data.supabaseUrl || '',
         supabaseAnonKey: data.supabaseAnonKey || '',
         emailEnabled: !!data.emailEnabled,
-        emailProvider: (data.emailProvider as any) || 'resend',
+        emailProvider: (data.emailProvider as 'resend' | 'sendgrid' | 'ses' | 'custom') || 'resend',
         emailApiUrl: data.emailApiUrl || '',
         emailApiKey: data.emailApiKey || '',
         emailFrom: data.emailFrom || '',
@@ -2030,7 +1945,7 @@ function SettingsManagement() {
                 <Label htmlFor="emailProvider">Provider</Label>
                 <Select
                   value={settings.emailProvider}
-                  onValueChange={(value) => setSettings({ ...settings, emailProvider: value as any })}
+                  onValueChange={(value: 'resend' | 'sendgrid' | 'ses' | 'custom') => setSettings({ ...settings, emailProvider: value })}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
