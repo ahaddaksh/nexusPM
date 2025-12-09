@@ -1,6 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// API Client for NestJS Backend
-// Replaces Supabase client calls with REST API calls
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -167,9 +165,10 @@ class ApiClient {
 
   // Auth endpoints
   async login(email: string, password: string) {
+    const normalizedEmail = email.trim().toLowerCase();
     const response = await this.request<{ token: string; user: any }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email: normalizedEmail, password }),
     });
     this.setToken(response.token);
     return response;
@@ -181,9 +180,11 @@ class ApiClient {
     firstName: string;
     lastName: string;
   }) {
+    const normalizedEmail = data.email.trim().toLowerCase();
+    const payload = { ...data, email: normalizedEmail };
     const response = await this.request<{ token: string; user: any }>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     this.setToken(response.token);
     return response;
@@ -201,6 +202,24 @@ class ApiClient {
   }
 
   // Users
+  async createUser(data: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    password?: string;
+    role?: string;
+    isActive?: boolean;
+    teamId?: string;
+    departmentId?: string;
+  }) {
+    const normalizedEmail = data.email.trim().toLowerCase();
+    const payload = { ...data, email: normalizedEmail };
+    return this.request<any>('/users', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   async updateUser(id: string, data: any) {
     return this.request<any>(`/users/${id}`, {
       method: 'PUT',
@@ -540,6 +559,22 @@ class ApiClient {
     });
   }
 
+  async triggerNotification(data: {
+    userId: string;
+    type: string;
+    title: string;
+    message: string;
+    relatedTaskId?: string;
+    relatedProjectId?: string;
+    relatedCommentId?: string;
+    metadata?: Record<string, any>;
+  }) {
+    return this.request<any>('/notifications/trigger', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async getNotificationPreferences() {
     return this.request<any>('/notifications/preferences');
   }
@@ -747,6 +782,31 @@ class ApiClient {
 
   async getPublicSettings() {
     return this.request<any>('/settings/public');
+  }
+
+  // Allowed Domains (Admin)
+  async getAllowedDomains() {
+    return this.request<any[]>('/allowed-domains');
+  }
+
+  async createAllowedDomain(data: { domain: string; isActive?: boolean; autoAssignTeamId?: string; autoAssignDepartmentId?: string }) {
+    return this.request<any>('/allowed-domains', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateAllowedDomain(id: string, data: Partial<{ domain: string; isActive: boolean; autoAssignTeamId: string; autoAssignDepartmentId: string }>) {
+    return this.request<any>(`/allowed-domains/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteAllowedDomain(id: string) {
+    return this.request<void>(`/allowed-domains/${id}`, {
+      method: 'DELETE',
+    });
   }
 }
 
