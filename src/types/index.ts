@@ -1,9 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface User {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
   role?: 'admin' | 'manager' | 'member';
+  teamId?: string;
+  departmentId?: string;
   isActive?: boolean;
   createdAt: string;
   updatedAt?: string;
@@ -222,6 +225,31 @@ export interface NotificationPreferences {
   pushSubscription?: any; // Web Push API subscription object
   createdAt: string;
   updatedAt: string;
+}
+
+export type NotificationType =
+  | 'TASK_ASSIGNED'
+  | 'TASK_DUE'
+  | 'TASK_OVERDUE'
+  | 'COMMENT'
+  | 'MENTION'
+  | 'MILESTONE'
+  | 'DEPENDENCY_BLOCKED'
+  | 'TASK_STATUS_CHANGED'
+  | 'PROJECT_UPDATED';
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  relatedTaskId?: string | null;
+  relatedProjectId?: string | null;
+  relatedCommentId?: string | null;
+  read: boolean;
+  readAt?: string | null;
+  createdAt: string;
 }
 
 export interface ProjectRisk {
